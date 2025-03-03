@@ -1,4 +1,4 @@
-# RepairOrderDispatcher
+# How To Get Started
 How to get started: </br>
 Step 1: Get the project into your IDE </br>
 Step 2: Run npm install react-router-dom </br>
