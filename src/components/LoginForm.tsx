@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { supabase } from '../supabaseClient';
+import { useAuth } from '../../server/AuthContext';
+import { supabase } from '../../server/supabaseClient';
 
 const LoginForm: React.FC = () => {
   const { login, signup } = useAuth();

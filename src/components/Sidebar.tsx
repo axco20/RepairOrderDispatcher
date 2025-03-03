@@ -41,7 +41,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
           <li className="mb-1">
             <button 
               className={`flex items-center w-full p-3 rounded-md ${activePage === 'Technicians' ? 'bg-indigo-700' : 'hover:bg-gray-700'}`}
-              onClick={() => onNavigate('Technicians')}
+              onClick={() => onNavigate('Technicians')} 
             >
               <Users size={18} />
               <span className="ml-3">Technicians</span>

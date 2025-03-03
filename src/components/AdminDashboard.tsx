@@ -1,18 +1,19 @@
 // components/AdminDashboard.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRepairOrders } from '../context/RepairOrderContext';
-import { RepairOrder, User } from '../types';
-import { useAuth } from '../context/AuthContext';
+import { RepairOrder } from '../types';
+import { useAuth } from '../../server/AuthContext';
+import { supabase } from '../../server/supabaseClient';
 import { Plus, ArrowUp, ArrowDown, UserCheck, Home, Users, FileText, BarChart2, Settings, HelpCircle, AlertTriangle, Clock, List, LogOut } from 'lucide-react';
 
-// Mock users for demo purposes
-const MOCK_TECHNICIANS: User[] = [
-  { id: '2', name: 'Tech 1', role: 'technician' },
-  { id: '3', name: 'Tech 2', role: 'technician' },
-  { id: '4', name: 'Tech 3', role: 'technician' },
-];
-
-
+// Define the Technician type based on your Supabase schema
+interface Technician {
+  id: string;
+  auth_id: string;
+  name: string;
+  email: string;
+  role: string;
+}
 
 const AdminDashboard: React.FC = () => {
   const { currentUser, logout} = useAuth();
@@ -28,11 +29,37 @@ const AdminDashboard: React.FC = () => {
     technicianActiveOrderCount
   } = useRepairOrders();
   
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [newOrderDescription, setNewOrderDescription] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedTechnician, setSelectedTechnician] = useState<string>('');
   const [selectedOrder, setSelectedOrder] = useState<string>('');
   const [activePage, setActivePage] = useState('Dashboard');
+
+  // Fetch technicians from Supabase
+  useEffect(() => {
+    const fetchTechnicians = async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('role', 'technician');
+      
+      if (error) {
+        console.error('Error fetching technicians:', error);
+      } else if (data) {
+        setTechnicians(data);
+      }
+    };
+
+    fetchTechnicians();
+  }, []);
+
+  // Function to get technician name by auth_id
+  const getTechnicianName = (auth_id?: string) => {
+    if (!auth_id) return 'Unknown';
+    const tech = technicians.find(t => t.auth_id === auth_id);
+    return tech ? tech.name : 'Unknown';
+  };
 
   const handleAddOrder = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +93,15 @@ const AdminDashboard: React.FC = () => {
     setActivePage(page);
   };
 
-  // This is the complete replacement UI
+  // Get user initials
+  const getUserInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(part => part[0])
+      .join('')
+      .toUpperCase();
+  };
+
   return (
     <div className="flex h-screen w-full">
       {/* Sidebar */}
@@ -80,10 +115,12 @@ const AdminDashboard: React.FC = () => {
         {/* User Profile Section */}
         <div className="p-4 border-b border-gray-700 flex items-center">
           <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center">
-            <span className="font-bold">AU</span>
+            <span className="font-bold">
+              {currentUser?.name ? getUserInitials(currentUser.name) : 'AU'}
+            </span>
           </div>
           <div className="ml-3">
-            <p className="font-medium">Admin User</p>
+            <p className="font-medium">{currentUser?.name || 'Admin User'}</p>
             <p className="text-xs text-gray-400">Administrator</p>
           </div>
         </div>
@@ -383,7 +420,7 @@ const AdminDashboard: React.FC = () => {
                             <div className="flex items-center">
                               <UserCheck size={16} className="text-indigo-500 mr-2" />
                               <div className="text-sm font-medium text-gray-900">
-                                {MOCK_TECHNICIANS.find(t => t.id === order.assignedTo)?.name || 'Unknown'}
+                                {getTechnicianName(order.assignedTo) || 'Unknown'}
                               </div>
                             </div>
                           </td>
@@ -436,7 +473,7 @@ const AdminDashboard: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
-                              {MOCK_TECHNICIANS.find(t => t.id === order.assignedTo)?.name || 'Unknown'}
+                              {getTechnicianName(order.assignedTo) || 'Unknown'}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -471,9 +508,9 @@ const AdminDashboard: React.FC = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
               >
                 <option value="">Select a technician</option>
-                {MOCK_TECHNICIANS.map(tech => (
-                  <option key={tech.id} value={tech.id}>
-                    {tech.name} ({technicianActiveOrderCount(tech.id)} active orders)
+                {technicians.map(tech => (
+                  <option key={tech.auth_id} value={tech.auth_id}>
+                    {tech.name} ({technicianActiveOrderCount(tech.auth_id)} active orders)
                   </option>
                 ))}
               </select>

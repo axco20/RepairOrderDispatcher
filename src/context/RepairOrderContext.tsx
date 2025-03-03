@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { RepairOrder, RepairOrderAssignment, User } from '../types';
-import { useAuth } from './AuthContext';
+import { useAuth } from '../../server/AuthContext';
 
 interface RepairOrderContextType {
   repairOrders: RepairOrder[];

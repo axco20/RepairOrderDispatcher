@@ -1,8 +1,8 @@
 import React from 'react';
-import { useAuth } from './context/AuthContext';
+import { useAuth } from '../server/AuthContext';
 import LoginForm from './components/LoginForm';
 import Dashboard from './components/Dashboard';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider } from '../server/AuthContext';
 import { RepairOrderProvider } from './context/RepairOrderContext';
 
 function AppContent() {
