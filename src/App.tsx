@@ -4,21 +4,21 @@ import LoginForm from './components/LoginForm';
 import Dashboard from './components/Dashboard';
 import { AuthProvider } from '../server/AuthContext';
 import { RepairOrderProvider } from './context/RepairOrderContext';
+import AdminDashboard from './components/AdminDashboard';
+import TechnicianDashboard from './components/TechnicianDashboard';
 
 function AppContent() {
   const { currentUser } = useAuth();
 
-  return (
-    <div className="min-h-screen bg-gray-100">
-      {currentUser ? (
-        <>
-          <Dashboard />
-        </>
-      ) : (
-        <LoginForm />
-      )}
-    </div>
-  );
+  if (!currentUser) {
+    return <LoginForm />;
+  }
+
+  if (currentUser.role === 'admin') {
+    return <AdminDashboard />;
+  } else {
+    return <TechnicianDashboard />;
+  }
 }
 
 function App() {
