@@ -1,11 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { RepairOrder, RepairOrderAssignment, User } from '../types';
+import React, { createContext, useContext, useState, useEffect } from 'react'; //repairordercontext.tsx
+import { RepairOrder, RepairOrderAssignment} from '../types';
 import { useAuth } from '../../server/AuthContext';
 
 interface RepairOrderContextType {
   repairOrders: RepairOrder[];
   assignments: RepairOrderAssignment[];
-  addRepairOrder: (order: Omit<RepairOrder, 'id' | 'createdAt' | 'status' | 'priority'>) => void;
+  addRepairOrder: (order: Omit<RepairOrder, 'id' | 'createdAt' | 'status'>) => void;
   getNextRepairOrder: () => void;
   completeRepairOrder: (orderId: string) => void;
   reassignRepairOrder: (orderId: string, technicianId: string) => void;
@@ -17,9 +17,11 @@ interface RepairOrderContextType {
   technicianOrders: (technicianId: string) => RepairOrder[];
   technicianActiveOrderCount: (technicianId: string) => number;
   canRequestNewOrder: (technicianId: string) => boolean;
+  
 }
 
 const RepairOrderContext = createContext<RepairOrderContextType>({
+  
   repairOrders: [],
   assignments: [],
   addRepairOrder: () => {},
@@ -68,8 +70,15 @@ export const RepairOrderProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Filter orders by status
   const pendingOrders = repairOrders
-    .filter(order => order.status === 'pending')
-    .sort((a, b) => a.priority - b.priority || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  .filter(order => order.status === 'pending')
+  .sort((a, b) => {
+    // Sort by priority first (lower number = higher priority)
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
+    }
+    // Then sort by creation date (older first)
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
   
   const inProgressOrders = repairOrders.filter(order => order.status === 'in_progress');
   const completedOrders = repairOrders.filter(order => order.status === 'completed');
@@ -106,13 +115,14 @@ export const RepairOrderProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   // Add a new repair order
-  const addRepairOrder = (order: Omit<RepairOrder, 'id' | 'createdAt' | 'status' | 'priority'>) => {
+  const addRepairOrder = (order: Omit<RepairOrder, 'id' | 'createdAt' | 'status'>) => {
     const newOrder: RepairOrder = {
       ...order,
       id: Date.now().toString(),
       createdAt: new Date().toISOString(),
       status: 'pending',
-      priority: 1, // Default priority
+      // Use the provided priority or default to 2
+      priority: order.priority || 2,
     };
     
     setRepairOrders(prev => [...prev, newOrder]);

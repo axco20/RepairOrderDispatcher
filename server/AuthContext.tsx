@@ -57,9 +57,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchUser();
   }, []);
 
-  // Signup function
-  const signup = async (email: string, password: string, name: string, role: string): Promise<boolean> => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+// Signup function with error handling and minimal logging
+const signup = async (email: string, password: string, name: string, role: string): Promise<boolean> => {
+  try {
+    // Step 1: Create auth user
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        data: {
+          name,
+          role
+        }
+      }
+    });
 
     if (error) {
       console.error("Signup error:", error.message);
@@ -71,10 +82,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
 
-    // Insert user details into the "users" table
+    // Step 2: Insert user details into the "users" table
     const { error: insertError } = await supabase
       .from('users')
-      .insert([{ auth_id: data.user.id, email, name, role }]);
+      .insert([{ 
+        auth_id: data.user.id, 
+        email, 
+        name, 
+        role 
+      }]);
 
     if (insertError) {
       console.error("Database insert error:", insertError.message);
@@ -82,7 +98,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     return true;
-  };
+  } catch (unexpectedError) {
+    console.error("Unexpected error during signup:", unexpectedError);
+    return false;
+  }
+};
 
   // Login function
   const login = async (email: string, password: string): Promise<boolean> => {

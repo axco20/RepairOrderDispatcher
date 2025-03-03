@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { useRepairOrders } from '../../context/RepairOrderContext';
 import { RepairOrder } from '../../types';
 import { supabase } from '../../../server/supabaseClient';
-import { useAuth } from '../../../server/AuthContext';
 import {
   Plus,
   ArrowUp,
@@ -18,8 +17,10 @@ interface Technician {
   role: string;
 }
 
+// Define priority types
+type PriorityType = 'WAIT' | 'VALET' | 'LOANER';
+
 const AdminHome: React.FC = () => {
-  const { currentUser } = useAuth();
 
   // Bring in the repair order methods and data from context
   const {
@@ -37,7 +38,8 @@ const AdminHome: React.FC = () => {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
 
   // State for new order form
-  const [newOrderDescription, setNewOrderDescription] = useState('');
+  const [repairOrderId, setRepairOrderId] = useState('');
+  const [selectedPriority, setSelectedPriority] = useState<PriorityType>('VALET');
   const [showAddForm, setShowAddForm] = useState(false);
 
   // State for reassigning
@@ -61,19 +63,60 @@ const AdminHome: React.FC = () => {
     fetchTechnicians();
   }, []);
 
-  // Helper to get a technician’s name by auth_id
+  // Helper to get a technician's name by auth_id
   const getTechnicianName = (auth_id?: string) => {
     if (!auth_id) return 'Unknown';
     const tech = technicians.find((t) => t.auth_id === auth_id);
     return tech ? tech.name : 'Unknown';
   };
 
-  // Add a new order
+  // Get priority numeric value based on type
+  const getPriorityValue = (priorityType: PriorityType): number => {
+    switch (priorityType) {
+      case 'WAIT': return 1;
+      case 'VALET': return 2;
+      case 'LOANER': return 3;
+      default: return 2; // Default to medium priority
+    }
+  };
+
+  // Get priority label for display
+  const getPriorityLabel = (priority: number): string => {
+    switch (priority) {
+      case 1: return 'WAIT';
+      case 2: return 'VALET';
+      case 3: return 'LOANER';
+      default: return 'VALET';
+    }
+  };
+
+  // Get CSS class for priority label
+  const getPriorityClass = (priority: number): string => {
+    switch (priority) {
+      case 1: return 'bg-red-100 text-red-800'; // High priority - WAIT
+      case 2: return 'bg-yellow-100 text-yellow-800'; // Medium priority - VALET
+      case 3: return 'bg-green-100 text-green-800'; // Low priority - LOANER
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Add a new order with priority
   const handleAddOrder = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newOrderDescription.trim()) {
-      addRepairOrder({ description: newOrderDescription.trim() });
-      setNewOrderDescription('');
+    if (repairOrderId.trim()) {
+      // Calculate priority based on type
+      const priorityValue = getPriorityValue(selectedPriority);
+      
+      // Add the order with the description as the repair order ID and the calculated priority
+      addRepairOrder({ 
+        description: repairOrderId.trim(),
+        priority: priorityValue,
+        priorityType: selectedPriority
+      });
+      
+      // Reset form
+      setRepairOrderId('');
+      setSelectedPriority('VALET');
       setShowAddForm(false);
     }
   };
@@ -94,10 +137,23 @@ const AdminHome: React.FC = () => {
 
   // Increase or decrease priority
   const handlePriorityChange = (order: RepairOrder, increase: boolean) => {
-    const newPriority = increase
-      ? Math.max(1, order.priority - 1)
-      : order.priority + 1;
-    updatePriority(order.id, newPriority);
+    // Get current priority
+    const currentPriority = order.priority;
+    
+    // Calculate new priority
+    let newPriority: number;
+    if (increase) {
+      // Limit to highest priority (1 = WAIT)
+      newPriority = Math.max(1, currentPriority - 1);
+    } else {
+      // Limit to lowest priority (3 = LOANER)
+      newPriority = Math.min(3, currentPriority + 1);
+    }
+    
+    // Only update if changed
+    if (newPriority !== currentPriority) {
+      updatePriority(order.id, newPriority);
+    }
   };
 
   return (
@@ -142,28 +198,50 @@ const AdminHome: React.FC = () => {
         </button>
       </div>
 
-      {/* Add new order form */}
+      {/* Add new order form - UPDATED */}
       {showAddForm && (
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <h3 className="text-lg font-semibold mb-3">Add New Repair Order</h3>
           <form onSubmit={handleAddOrder} className="space-y-4">
             <div>
               <label
-                htmlFor="description"
+                htmlFor="repairOrderId"
                 className="block text-sm font-medium text-gray-700 mb-1"
               >
-                Description
+                Repair Order ID
               </label>
-              <textarea
-                id="description"
-                value={newOrderDescription}
-                onChange={(e) => setNewOrderDescription(e.target.value)}
+              <input
+                id="repairOrderId"
+                type="text"
+                value={repairOrderId}
+                onChange={(e) => setRepairOrderId(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
                   focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                rows={3}
                 required
               />
             </div>
+            
+            {/* Priority Selection Dropdown - NEW */}
+            <div>
+              <label
+                htmlFor="priority"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Priority Level
+              </label>
+              <select
+                id="priority"
+                value={selectedPriority}
+                onChange={(e) => setSelectedPriority(e.target.value as PriorityType)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
+                  focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="WAIT">WAIT (Highest Priority)</option>
+                <option value="VALET">VALET (Medium Priority)</option>
+                <option value="LOANER">LOANER (Lowest Priority)</option>
+              </select>
+            </div>
+            
             <div className="flex justify-end space-x-2">
               <button
                 type="button"
@@ -187,7 +265,7 @@ const AdminHome: React.FC = () => {
 
       {/*
         ===========================
-        PENDING ORDERS TABLE
+        PENDING ORDERS TABLE - UPDATED to show priority type
         ===========================
       */}
       <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
@@ -198,15 +276,16 @@ const AdminHome: React.FC = () => {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-2 font-medium text-gray-700">ID</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Description</th>
+              <th className="px-4 py-2 font-medium text-gray-700">Repair Order ID</th>
               <th className="px-4 py-2 font-medium text-gray-700">Priority</th>
+              <th className="px-4 py-2 font-medium text-gray-700">Priority Type</th>
               <th className="px-4 py-2 font-medium text-gray-700">Actions</th>
             </tr>
           </thead>
           <tbody>
             {pendingOrders.map((order) => (
               <tr key={order.id} className="border-b">
-                <td className="px-4 py-2">{order.id}</td>
+                <td className="px-4 py-2">{order.id.substring(0, 8)}...</td>
                 <td className="px-4 py-2">{order.description}</td>
                 <td className="px-4 py-2 flex items-center space-x-2">
                   <span>{order.priority}</span>
@@ -219,18 +298,16 @@ const AdminHome: React.FC = () => {
                   </button>
                 </td>
                 <td className="px-4 py-2">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityClass(order.priority)}`}>
+                    {getPriorityLabel(order.priority)}
+                  </span>
+                </td>
+                <td className="px-4 py-2">
                   <button
                     onClick={() => setSelectedOrder(order.id)}
                     className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded mr-2"
                   >
                     Assign
-                  </button>
-                  {/* Return to Queue (in case you have that flow) */}
-                  <button
-                    onClick={() => handleReturnToQueue(order.id)}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded"
-                  >
-                    Return
                   </button>
                 </td>
               </tr>
