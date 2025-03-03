@@ -1,16 +1,26 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '../types';
+import { supabase } from '../supabaseClient';
+
+// Define User type
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+}
 
 interface AuthContextType {
   currentUser: User | null;
-  login: (user: User) => void;
+  signup: (email: string, password: string, name: string, role: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   currentUser: null,
-  login: () => {},
+  signup: async () => false,
+  login: async () => false,
   logout: () => {},
   isAdmin: false,
 });
@@ -21,30 +31,107 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // In a real app, you would check for a stored token and validate it
+  // Check for an active session on page load
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
-      setCurrentUser(user);
-      setIsAdmin(user.role === 'admin');
-    }
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && user.email) {
+        // Fetch user details from "users" table
+        const { data: userData, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_id', user.id)
+          .single();
+
+        if (!error && userData) {
+          setCurrentUser({ 
+            id: userData.auth_id, 
+            email: userData.email, 
+            name: userData.name, 
+            role: userData.role 
+          });
+          setIsAdmin(userData.role === 'admin');
+        }
+      }
+    };
+    fetchUser();
   }, []);
 
-  const login = (user: User) => {
-    setCurrentUser(user);
-    setIsAdmin(user.role === 'admin');
-    localStorage.setItem('user', JSON.stringify(user));
+  // Signup function
+  const signup = async (email: string, password: string, name: string, role: string): Promise<boolean> => {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+
+    if (error) {
+      console.error("Signup error:", error.message);
+      return false;
+    }
+
+    if (!data.user?.id) {
+      console.error("Error: No user ID returned from Supabase");
+      return false;
+    }
+
+    // Insert user details into the "users" table
+    const { error: insertError } = await supabase
+      .from('users')
+      .insert([{ auth_id: data.user.id, email, name, role }]);
+
+    if (insertError) {
+      console.error("Database insert error:", insertError.message);
+      return false;
+    }
+
+    return true;
   };
 
-  const logout = () => {
+  // Login function
+  const login = async (email: string, password: string): Promise<boolean> => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+        console.error("Login error:", error.message);
+        return false;
+    }
+
+    if (!data.user?.id) {
+        console.error("Error: No user ID returned from Supabase");
+        return false;
+    }
+
+    // Fetch user details from "users" table
+    const { data: userData, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('auth_id', data.user.id)
+        .single();
+
+    if (fetchError || !userData) {
+        console.error("User fetch error:", fetchError?.message);
+        return false;
+    }
+
+    console.log("fetched role", userData.role)
+
+    setCurrentUser({
+        id: userData.auth_id,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role
+    });
+
+    return true; // ✅ Return true on success, false on failure
+};
+
+
+  // Logout function
+  const logout = async () => {
+    await supabase.auth.signOut();
     setCurrentUser(null);
     setIsAdmin(false);
-    localStorage.removeItem('user');
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, login, logout, isAdmin }}>
+    <AuthContext.Provider value={{ currentUser, signup, login, logout, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );
