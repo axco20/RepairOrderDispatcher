@@ -1,6 +1,6 @@
 'use client'
 import React, { createContext, useContext, useState, useEffect } from 'react'; //repairordercontext.tsx
-import { RepairOrder, RepairOrderAssignment} from '../types';
+import { RepairOrder, RepairOrderAssignment} from '../schemas';
 import { useAuth } from '@/context/AuthContext';
 
 interface RepairOrderContextType {

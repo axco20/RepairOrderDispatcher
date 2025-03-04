@@ -62,7 +62,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
       </div>
 
-      {/* Navigation Links */}
+      {/* Navigation Links - REORDERED */}
       <nav className="flex-1 overflow-y-auto">
         <ul className="p-2">
           <li className="mb-1">
@@ -74,6 +74,17 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
             >
               <Home size={18} />
               <span className="ml-3">Dashboard</span>
+            </button>
+          </li>
+          <li className="mb-1">
+            <button
+              className={`flex items-center w-full p-3 rounded-md ${
+                activePage === 'Orders' ? 'bg-indigo-700' : 'hover:bg-gray-700'
+              }`}
+              onClick={() => onNavigate('Orders')}
+            >
+              <FileText size={18} />
+              <span className="ml-3">Repair Orders</span>
             </button>
           </li>
           <li className="mb-1">
@@ -96,17 +107,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
             >
               <List size={18} />
               <span className="ml-3">Queue Management</span>
-            </button>
-          </li>
-          <li className="mb-1">
-            <button
-              className={`flex items-center w-full p-3 rounded-md ${
-                activePage === 'Orders' ? 'bg-indigo-700' : 'hover:bg-gray-700'
-              }`}
-              onClick={() => onNavigate('Orders')}
-            >
-              <FileText size={18} />
-              <span className="ml-3">All Repair Orders</span>
             </button>
           </li>
         </ul>

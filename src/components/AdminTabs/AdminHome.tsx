@@ -1,13 +1,8 @@
 // src/components/AdminTabs/AdminHome.tsx
-import React, { useState, useEffect } from 'react';
-import { useRepairOrders } from '../../context/RepairOrderContext';
-import { RepairOrder } from '../../types';
+import React, { useState, useEffect } from "react";
+import { useRepairOrders } from "@/context/RepairOrderContext";
+import { BarChart, Activity, Clock, Award } from "lucide-react";
 import { supabase } from '@/lib/supabaseClient';
-import {
-  Plus,
-  ArrowUp,
-  ArrowDown
-} from 'lucide-react';
 
 interface Technician {
   id: string;
@@ -17,35 +12,13 @@ interface Technician {
   role: string;
 }
 
-// Define priority types
-type PriorityType = 'WAIT' | 'VALET' | 'LOANER';
-
 const AdminHome: React.FC = () => {
-
-  // Bring in the repair order methods and data from context
-  const {
-    pendingOrders,
-    inProgressOrders,
-    completedOrders,
-    addRepairOrder,
-    reassignRepairOrder,
-    returnToQueue,
-    updatePriority,
-    technicianActiveOrderCount,
-  } = useRepairOrders();
-
-  // State for storing technicians
+  const { repairOrders, assignments } = useRepairOrders();
+  const [timeRange, setTimeRange] = useState<"day" | "week" | "month" | "year">("week");
+  const [orderVolume, setOrderVolume] = useState<any[]>([]);
+  const [techPerformance, setTechPerformance] = useState<any[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
-
-  // State for new order form
-  const [repairOrderId, setRepairOrderId] = useState('');
-  const [selectedPriority, setSelectedPriority] = useState<PriorityType>('VALET');
-  const [showAddForm, setShowAddForm] = useState(false);
-
-  // State for reassigning
-  const [selectedTechnician, setSelectedTechnician] = useState<string>('');
-  const [selectedOrder, setSelectedOrder] = useState<string>('');
-
+  
   // Fetch technicians from Supabase
   useEffect(() => {
     const fetchTechnicians = async () => {
@@ -69,393 +42,407 @@ const AdminHome: React.FC = () => {
     const tech = technicians.find((t) => t.auth_id === auth_id);
     return tech ? tech.name : 'Unknown';
   };
-
-  // Get priority numeric value based on type
-  const getPriorityValue = (priorityType: PriorityType): number => {
-    switch (priorityType) {
-      case 'WAIT': return 1;
-      case 'VALET': return 2;
-      case 'LOANER': return 3;
-      default: return 2; // Default to medium priority
-    }
-  };
-
-  // Get priority label for display
-  const getPriorityLabel = (priority: number): string => {
-    switch (priority) {
-      case 1: return 'WAIT';
-      case 2: return 'VALET';
-      case 3: return 'LOANER';
-      default: return 'VALET';
-    }
-  };
-
-  // Get CSS class for priority label
-  const getPriorityClass = (priority: number): string => {
-    switch (priority) {
-      case 1: return 'bg-red-100 text-red-800'; // High priority - WAIT
-      case 2: return 'bg-yellow-100 text-yellow-800'; // Medium priority - VALET
-      case 3: return 'bg-green-100 text-green-800'; // Low priority - LOANER
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  // Add a new order with priority
-  const handleAddOrder = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (repairOrderId.trim()) {
-      // Calculate priority based on type
-      const priorityValue = getPriorityValue(selectedPriority);
+  
+  // Process data for metrics
+  useEffect(() => {
+    // Get date range based on selected time period
+    const getDateRange = () => {
+      const now = new Date();
+      const endDate = now;
+      let startDate = new Date();
       
-      // Add the order with the description as the repair order ID and the calculated priority
-      addRepairOrder({ 
-        description: repairOrderId.trim(),
-        priority: priorityValue,
-        priorityType: selectedPriority
+      switch(timeRange) {
+        case "day":
+          startDate.setHours(0, 0, 0, 0);
+          break;
+        case "week":
+          startDate.setDate(startDate.getDate() - 7);
+          break;
+        case "month":
+          startDate.setMonth(startDate.getMonth() - 1);
+          break;
+        case "year":
+          startDate.setFullYear(startDate.getFullYear() - 1);
+          break;
+      }
+      
+      return { startDate, endDate };
+    };
+    
+    const { startDate, endDate } = getDateRange();
+    
+    // Filter orders by date range
+    const filteredOrders = repairOrders.filter(order => {
+      const orderDate = new Date(order.createdAt);
+      return orderDate >= startDate && orderDate <= endDate;
+    });
+    
+    // Order volume over time
+    const calculateOrderVolume = () => {
+      // Group data based on time period
+      const volumeData: Record<string, number> = {};
+      
+      filteredOrders.forEach(order => {
+        const date = new Date(order.createdAt);
+        let key = '';
+        
+        if (timeRange === 'day') {
+          // Group by hour
+          key = `${date.getHours()}:00`;
+        } else if (timeRange === 'week') {
+          // Group by day
+          key = date.toLocaleDateString('en-US', { weekday: 'short' });
+        } else if (timeRange === 'month') {
+          // Group by day of month
+          key = `${date.getDate()}`;
+        } else if (timeRange === 'year') {
+          // Group by month
+          key = date.toLocaleDateString('en-US', { month: 'short' });
+        }
+        
+        volumeData[key] = (volumeData[key] || 0) + 1;
       });
       
-      // Reset form
-      setRepairOrderId('');
-      setSelectedPriority('VALET');
-      setShowAddForm(false);
-    }
-  };
-
-  // Reassign an order to a particular technician
-  const handleReassign = () => {
-    if (selectedOrder && selectedTechnician) {
-      reassignRepairOrder(selectedOrder, selectedTechnician);
-      setSelectedOrder('');
-      setSelectedTechnician('');
-    }
-  };
-
-  // Return an order to the queue
-  const handleReturnToQueue = (orderId: string) => {
-    returnToQueue(orderId);
-  };
-
-  // Increase or decrease priority
-  const handlePriorityChange = (order: RepairOrder, increase: boolean) => {
-    // Get current priority
-    const currentPriority = order.priority;
+      // Convert to array for rendering
+      const result = Object.entries(volumeData).map(([label, count]) => ({
+        label,
+        count
+      }));
+      
+      // Sort appropriately
+      if (timeRange === 'week') {
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        result.sort((a, b) => days.indexOf(a.label) - days.indexOf(b.label));
+      } else if (timeRange === 'year') {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        result.sort((a, b) => months.indexOf(a.label) - months.indexOf(b.label));
+      } else {
+        // For day and month, sort numerically
+        result.sort((a, b) => {
+          if (timeRange === 'day') {
+            return parseInt(a.label) - parseInt(b.label);
+          }
+          return parseInt(a.label) - parseInt(b.label);
+        });
+      }
+      
+      return result;
+    };
     
-    // Calculate new priority
-    let newPriority: number;
-    if (increase) {
-      // Limit to highest priority (1 = WAIT)
-      newPriority = Math.max(1, currentPriority - 1);
-    } else {
-      // Limit to lowest priority (3 = LOANER)
-      newPriority = Math.min(3, currentPriority + 1);
+    // Calculate technician performance
+    const calculateTechPerformance = () => {
+      // Get completed assignments in the date range
+      const relevantAssignments = assignments.filter(assignment => {
+        if (!assignment.completedAt) return false;
+        const completedDate = new Date(assignment.completedAt);
+        return completedDate >= startDate && completedDate <= endDate;
+      });
+      
+      // Group by technician
+      const techStats: Record<string, any> = {};
+      
+      relevantAssignments.forEach(assignment => {
+        const { technicianId, assignedAt, completedAt } = assignment;
+        
+        if (!techStats[technicianId]) {
+          techStats[technicianId] = {
+            technicianId,
+            completedCount: 0,
+            totalTimeMs: 0,
+            averageTimeMs: 0,
+            technicianName: getTechnicianName(technicianId)
+          };
+        }
+        
+        // Calculate time to complete
+        if (assignedAt && completedAt) {
+          const startTime = new Date(assignedAt).getTime();
+          const endTime = new Date(completedAt).getTime();
+          const timeToComplete = endTime - startTime;
+          
+          techStats[technicianId].completedCount += 1;
+          techStats[technicianId].totalTimeMs += timeToComplete;
+        }
+      });
+      
+      // Calculate averages
+      Object.values(techStats).forEach((stat: any) => {
+        if (stat.completedCount > 0) {
+          stat.averageTimeMs = Math.round(stat.totalTimeMs / stat.completedCount);
+          // Convert to minutes for display
+          stat.averageMinutes = Math.round(stat.averageTimeMs / (1000 * 60));
+        }
+      });
+      
+      // Convert to array and sort by completed count
+      return Object.values(techStats).sort((a: any, b: any) => b.completedCount - a.completedCount);
+    };
+    
+    setOrderVolume(calculateOrderVolume());
+    setTechPerformance(calculateTechPerformance());
+    
+  }, [timeRange, repairOrders, assignments, technicians]);
+  
+  // Calculate max values for scaling
+  const maxOrderVolume = Math.max(...orderVolume.map(d => d.count), 1);
+  
+  // Get total counts
+  const totalOrders = repairOrders.length;
+  const pendingOrders = repairOrders.filter(order => order.status === 'pending').length;
+  const inProgressOrders = repairOrders.filter(order => order.status === 'in_progress').length;
+  const completedOrders = repairOrders.filter(order => order.status === 'completed').length;
+  
+  // Get average completion time overall
+  const calculateAvgCompletionTime = () => {
+    const completedAssignments = assignments.filter(a => a.status === 'completed' && a.completedAt && a.assignedAt);
+    
+    if (completedAssignments.length === 0) return "N/A";
+    
+    const totalTime = completedAssignments.reduce((sum, assignment) => {
+      const startTime = new Date(assignment.assignedAt).getTime();
+      const endTime = new Date(assignment.completedAt!).getTime();
+      return sum + (endTime - startTime);
+    }, 0);
+    
+    const avgTimeMs = totalTime / completedAssignments.length;
+    const avgMinutes = Math.round(avgTimeMs / (1000 * 60));
+    
+    if (avgMinutes >= 60) {
+      const hours = Math.floor(avgMinutes / 60);
+      const mins = avgMinutes % 60;
+      return `${hours}h ${mins}m`;
     }
     
-    // Only update if changed
-    if (newPriority !== currentPriority) {
-      updatePriority(order.id, newPriority);
-    }
+    return `${avgMinutes}m`;
   };
-
+  
+  const avgCompletionTime = calculateAvgCompletionTime();
+  
   return (
     <div>
-      {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="text-gray-700 mb-2 font-semibold text-lg text-center">
-            Pending Orders
-          </h3>
-          <p className="text-4xl font-bold text-indigo-600 text-center">
-            {pendingOrders.length}
-          </p>
+      <h1 className="text-2xl font-bold mb-6">Performance Dashboard</h1>
+      
+      {/* Time Range Selector */}
+      <div className="mb-6">
+        <div className="inline-flex rounded-md shadow-sm" role="group">
+          <button
+            type="button"
+            onClick={() => setTimeRange("day")}
+            className={`px-4 py-2 text-sm font-medium rounded-l-lg ${
+              timeRange === "day" 
+                ? "text-white bg-indigo-600" 
+                : "text-gray-900 bg-white hover:bg-gray-100"
+            }`}
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={() => setTimeRange("week")}
+            className={`px-4 py-2 text-sm font-medium ${
+              timeRange === "week" 
+                ? "text-white bg-indigo-600" 
+                : "text-gray-900 bg-white hover:bg-gray-100"
+            }`}
+          >
+            Week
+          </button>
+          <button
+            type="button"
+            onClick={() => setTimeRange("month")}
+            className={`px-4 py-2 text-sm font-medium ${
+              timeRange === "month" 
+                ? "text-white bg-indigo-600" 
+                : "text-gray-900 bg-white hover:bg-gray-100"
+            }`}
+          >
+            Month
+          </button>
+          <button
+            type="button"
+            onClick={() => setTimeRange("year")}
+            className={`px-4 py-2 text-sm font-medium rounded-r-lg ${
+              timeRange === "year" 
+                ? "text-white bg-indigo-600" 
+                : "text-gray-900 bg-white hover:bg-gray-100"
+            }`}
+          >
+            Year
+          </button>
         </div>
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="text-gray-700 mb-2 font-semibold text-lg text-center">
-            In Progress
-          </h3>
-          <p className="text-4xl font-bold text-yellow-500 text-center">
-            {inProgressOrders.length}
-          </p>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="text-gray-700 mb-2 font-semibold text-lg text-center">
-            Completed
-          </h3>
-          <p className="text-4xl font-bold text-green-600 text-center">
-            {completedOrders.length}
-          </p>
-        </div>
       </div>
-
-      {/* Header Row: Title + "Add Order" Button */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Admin Dashboard</h2>
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="flex items-center space-x-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded"
-        >
-          <Plus size={16} />
-          <span>Add Repair Order</span>
-        </button>
-      </div>
-
-      {/* Add new order form - UPDATED */}
-      {showAddForm && (
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <h3 className="text-lg font-semibold mb-3">Add New Repair Order</h3>
-          <form onSubmit={handleAddOrder} className="space-y-4">
-            <div>
-              <label
-                htmlFor="repairOrderId"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Repair Order ID
-              </label>
-              <input
-                id="repairOrderId"
-                type="text"
-                value={repairOrderId}
-                onChange={(e) => setRepairOrderId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
-                  focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                required
-              />
+      
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-blue-100 text-blue-800">
+              <BarChart className="h-6 w-6" />
             </div>
-            
-            {/* Priority Selection Dropdown - NEW */}
-            <div>
-              <label
-                htmlFor="priority"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Priority Level
-              </label>
-              <select
-                id="priority"
-                value={selectedPriority}
-                onChange={(e) => setSelectedPriority(e.target.value as PriorityType)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
-                  focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              >
-                <option value="WAIT">WAIT (Highest Priority)</option>
-                <option value="VALET">VALET (Medium Priority)</option>
-                <option value="LOANER">LOANER (Lowest Priority)</option>
-              </select>
-            </div>
-            
-            <div className="flex justify-end space-x-2">
-              <button
-                type="button"
-                onClick={() => setShowAddForm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm 
-                  text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 border border-transparent rounded-md shadow-sm 
-                  text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-              >
-                Add Order
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/*
-        ===========================
-        PENDING ORDERS TABLE - UPDATED to show priority type
-        ===========================
-      */}
-      <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
-        <h3 className="text-lg font-semibold p-4 border-b">
-          Pending Repair Orders
-        </h3>
-        <table className="min-w-full text-left">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 font-medium text-gray-700">ID</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Repair Order ID</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Priority</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Priority Type</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pendingOrders.map((order) => (
-              <tr key={order.id} className="border-b">
-                <td className="px-4 py-2">{order.id.substring(0, 8)}...</td>
-                <td className="px-4 py-2">{order.description}</td>
-                <td className="px-4 py-2 flex items-center space-x-2">
-                  <span>{order.priority}</span>
-                  {/* Increase/Decrease Priority */}
-                  <button onClick={() => handlePriorityChange(order, true)}>
-                    <ArrowUp size={16} />
-                  </button>
-                  <button onClick={() => handlePriorityChange(order, false)}>
-                    <ArrowDown size={16} />
-                  </button>
-                </td>
-                <td className="px-4 py-2">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityClass(order.priority)}`}>
-                    {getPriorityLabel(order.priority)}
-                  </span>
-                </td>
-                <td className="px-4 py-2">
-                  <button
-                    onClick={() => setSelectedOrder(order.id)}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded mr-2"
-                  >
-                    Assign
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/*
-        ===========================
-        IN-PROGRESS ORDERS TABLE
-        ===========================
-      */}
-      <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
-        <h3 className="text-lg font-semibold p-4 border-b">
-          In Progress Repair Orders
-        </h3>
-        <table className="min-w-full text-left">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 font-medium text-gray-700">ID</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Description</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Assigned To</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Priority</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {inProgressOrders.map((order) => (
-              <tr key={order.id} className="border-b">
-                <td className="px-4 py-2">{order.id}</td>
-                <td className="px-4 py-2">{order.description}</td>
-                <td className="px-4 py-2">
-                  {getTechnicianName(order.assignedTo)}
-                </td>
-                <td className="px-4 py-2 flex items-center space-x-2">
-                  <span>{order.priority}</span>
-                  {/* Increase/Decrease Priority */}
-                  <button onClick={() => handlePriorityChange(order, true)}>
-                    <ArrowUp size={16} />
-                  </button>
-                  <button onClick={() => handlePriorityChange(order, false)}>
-                    <ArrowDown size={16} />
-                  </button>
-                </td>
-                <td className="px-4 py-2">
-                  {/* Reassign Button */}
-                  <button
-                    onClick={() => setSelectedOrder(order.id)}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded mr-2"
-                  >
-                    Reassign
-                  </button>
-                  {/* Return to Queue */}
-                  <button
-                    onClick={() => handleReturnToQueue(order.id)}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded"
-                  >
-                    Return
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/*
-        ===========================
-        COMPLETED ORDERS TABLE
-        ===========================
-      */}
-      <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
-        <h3 className="text-lg font-semibold p-4 border-b">
-          Completed Repair Orders
-        </h3>
-        <table className="min-w-full text-left">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 font-medium text-gray-700">ID</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Description</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Assigned To</th>
-              <th className="px-4 py-2 font-medium text-gray-700">Priority</th>
-            </tr>
-          </thead>
-          <tbody>
-            {completedOrders.map((order) => (
-              <tr key={order.id} className="border-b">
-                <td className="px-4 py-2">{order.id}</td>
-                <td className="px-4 py-2">{order.description}</td>
-                <td className="px-4 py-2">
-                  {getTechnicianName(order.assignedTo)}
-                </td>
-                <td className="px-4 py-2">{order.priority}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Modal for assigning orders */}
-      {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Assign Repair Order</h3>
-            <div className="mb-4">
-              <label
-                htmlFor="technician"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Select Technician
-              </label>
-              <select
-                id="technician"
-                value={selectedTechnician}
-                onChange={(e) => setSelectedTechnician(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
-                  focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              >
-                <option value="">Select a technician</option>
-                {technicians.map((tech) => (
-                  <option key={tech.auth_id} value={tech.auth_id}>
-                    {tech.name} ({technicianActiveOrderCount(tech.auth_id)} active)
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setSelectedOrder('')}
-                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm 
-                  text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReassign}
-                disabled={!selectedTechnician}
-                className="px-4 py-2 border border-transparent rounded-md shadow-sm 
-                  text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 
-                  disabled:bg-gray-400"
-              >
-                Assign
-              </button>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Total Orders</p>
+              <p className="text-2xl font-semibold text-gray-900">{totalOrders}</p>
             </div>
           </div>
         </div>
-      )}
+        
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-yellow-100 text-yellow-800">
+              <Activity className="h-6 w-6" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">In Progress</p>
+              <p className="text-2xl font-semibold text-gray-900">{inProgressOrders}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-green-100 text-green-800">
+              <Award className="h-6 w-6" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Completed</p>
+              <p className="text-2xl font-semibold text-gray-900">{completedOrders}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-purple-100 text-purple-800">
+              <Clock className="h-6 w-6" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Avg. Completion</p>
+              <p className="text-2xl font-semibold text-gray-900">{avgCompletionTime}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Order Volume Chart */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold mb-4">Order Volume</h2>
+          
+          {orderVolume.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No data available for the selected time period</p>
+          ) : (
+            <div className="space-y-2">
+              {orderVolume.map((item, index) => (
+                <div key={index} className="flex items-center">
+                  <div className="w-16 text-sm text-gray-600">{item.label}</div>
+                  <div className="flex-grow">
+                    <div 
+                      className="bg-blue-600 h-6 rounded-r-sm flex items-center justify-end pr-2 text-white text-xs"
+                      style={{ width: `${(item.count / maxOrderVolume) * 100}%`, minWidth: item.count > 0 ? '24px' : '0' }}
+                    >
+                      {item.count}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* Technician Performance Chart */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold mb-4">Technician Performance</h2>
+          
+          {techPerformance.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No data available for the selected time period</p>
+          ) : (
+            <div className="space-y-4">
+              {techPerformance.map((tech: any, index: number) => (
+                <div key={index} className="space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium">{tech.technicianName}</span>
+                    <span className="text-gray-500">{tech.completedCount} orders</span>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <div className="flex-grow">
+                      <div 
+                        className="bg-green-600 h-4 rounded-sm"
+                        style={{ width: `${(tech.completedCount / Math.max(...techPerformance.map((t: any) => t.completedCount), 1)) * 100}%`, minWidth: '4px' }}
+                      ></div>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Clock className="h-4 w-4 mr-1" />
+                      <span>{tech.averageMinutes || 0} min avg</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Details Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b">
+          <h2 className="text-lg font-semibold">Detailed Performance</h2>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Technician
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Orders Completed
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Avg. Time to Complete
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Current Workload
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {techPerformance.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
+                    No data available for the selected time period
+                  </td>
+                </tr>
+              ) : (
+                techPerformance.map((tech: any, index: number) => {
+                  // Count current in-progress orders
+                  const currentWorkload = repairOrders.filter(
+                    order => order.assignedTo === tech.technicianId && order.status === 'in_progress'
+                  ).length;
+                  
+                  return (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{tech.technicianName}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{tech.completedCount}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{tech.averageMinutes || 0} minutes</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{currentWorkload} orders</div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 };
