@@ -87,7 +87,7 @@ const TeamMembers: React.FC = () => {
 
   const handleSendEmail2 = async () => {
     if (!email) {
-      toast.error("❌ Please enter an email address.");
+      toast.error("Please enter an email address.");
       return;
     }
   
@@ -100,12 +100,12 @@ const TeamMembers: React.FC = () => {
   
       const result = await response.json();
       if (response.ok) {
-        toast.success("✅ Email sent successfully!");
+        toast.success("Email sent successfully!");
       } else {
-        toast.error("❌ Error sending email: " + result.error);
+        toast.error("Error sending email: " + result.error);
       }
     } catch (error) {
-      toast.error("❌ Network error: " + error);
+      toast.error("Network error: " + error);
     }
   
     setIsModalOpen(false);
@@ -282,7 +282,7 @@ const TeamMembers: React.FC = () => {
             />
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => setIsModal2Open(false)}
                 className="bg-gray-400 text-white px-4 py-2 rounded-md"
               >
                 Cancel
