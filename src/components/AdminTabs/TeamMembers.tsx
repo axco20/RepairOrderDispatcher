@@ -235,68 +235,79 @@ const TeamMembers: React.FC = () => {
         )}
       </div>
 
-      {/* Modal for Adding Admin */}
-      {isModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-200">
-            <h2 className="text-lg font-bold text-gray-800 mb-3">
-              Enter Admin Email
-            </h2>
-            <input
-              type="email"
-              placeholder="Enter email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md mb-3"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="bg-gray-400 text-white px-4 py-2 rounded-md"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSendEmail}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-              >
-                Send Email
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Modal for Adding Technician */}
-      {isModal2Open && (
-        <div className="fixed inset-0 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-200">
-            <h2 className="text-lg font-bold text-gray-800 mb-3">
-              Enter Technician Email
-            </h2>
-            <input
-              type="email"
-              placeholder="Enter email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md mb-3"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setIsModal2Open(false)}
-                className="bg-gray-400 text-white px-4 py-2 rounded-md"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSendEmail2}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-              >
-                Send Email
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+{/* Modal for Adding Admin */}
+{isModalOpen && (
+  <div className="fixed inset-0 flex items-center justify-center ">
+    <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
+      <h2 className="text-lg font-bold text-white mb-4 text-center">
+        Enter Admin Email
+      </h2>
+      <input
+        type="email"
+        placeholder="example@example.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="w-full p-2 border border-gray-600 bg-[#374151] text-white rounded-md mb-4 
+        focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+      />
+      {/* Centered Buttons with Even Spacing */}
+      <div className="flex justify-center space-x-4">
+        <button
+          onClick={() => setIsModalOpen(false)}
+          className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 
+          focus:outline-none focus:ring-2 focus:ring-gray-500"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSendEmail}
+          className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 
+          focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          Send Email
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+{/* Modal for Adding Technician */}
+{isModal2Open && (
+  <div className="fixed inset-0 flex items-center justify-center ">
+    <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
+      <h2 className="text-lg font-bold text-white mb-4 text-center">
+        Enter Technician Email
+      </h2>
+      <input
+        type="email"
+        placeholder="example@example.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="w-full p-2 border border-gray-600 bg-[#374151] text-white rounded-md mb-4 
+        focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+      />
+      {/* Centered Buttons with Even Spacing */}
+      <div className="flex justify-center space-x-4">
+        <button
+          onClick={() => setIsModal2Open(false)}
+          className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 
+          focus:outline-none focus:ring-2 focus:ring-gray-500"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSendEmail2}
+          className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 
+          focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          Send Email
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 };

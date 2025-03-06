@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRepairOrders } from '@/context/RepairOrderContext';
 import { supabase } from '@/lib/supabaseClient';
+import Select from 'react-select';
+
 import {
   Plus,
   Check,
@@ -18,6 +20,12 @@ interface Technician {
   name: string;
   email: string;
   role: string;
+}
+
+// For react-select
+interface TechnicianOption {
+  value: string;
+  label: string;
 }
 
 // Define priority types
@@ -37,6 +45,7 @@ export default function Orders() {
 
   // State for storing technicians
   const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [technicianOptions, setTechnicianOptions] = useState<TechnicianOption[]>([]);
 
   // State for new order form
   const [description, setDescription] = useState('');
@@ -44,7 +53,7 @@ export default function Orders() {
   const [showAddForm, setShowAddForm] = useState(false);
 
   // State for reassigning
-  const [selectedTechnician, setSelectedTechnician] = useState<string>('');
+  const [selectedTechnicianOption, setSelectedTechnicianOption] = useState<TechnicianOption | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<string>('');
 
   // State for form feedback
@@ -66,10 +75,17 @@ export default function Orders() {
         console.error('Error fetching technicians:', error);
       } else if (data) {
         setTechnicians(data);
+        
+        // Create options for react-select
+        const options = data.map(tech => ({
+          value: tech.auth_id,
+          label: `${tech.name} (${technicianActiveOrderCount(tech.auth_id)} active)`
+        }));
+        setTechnicianOptions(options);
       }
     };
     fetchTechnicians();
-  }, []);
+  }, [technicianActiveOrderCount]);
 
   // Helper to get a technician's name by auth_id
   const getTechnicianName = (auth_id?: string) => {
@@ -160,16 +176,57 @@ export default function Orders() {
 
   // Reassign an order to a particular technician
   const handleReassign = () => {
-    if (selectedOrder && selectedTechnician) {
-      reassignRepairOrder(selectedOrder, selectedTechnician);
+    if (selectedOrder && selectedTechnicianOption) {
+      reassignRepairOrder(selectedOrder, selectedTechnicianOption.value);
       setSelectedOrder('');
-      setSelectedTechnician('');
+      setSelectedTechnicianOption(null);
     }
   };
 
   // Return an order to the queue
   const handleReturnToQueue = (orderId: string) => {
     returnToQueue(orderId);
+  };
+
+  // Custom styles for react-select
+  const customSelectStyles = {
+    control: (base: any) => ({
+      ...base,
+      backgroundColor: '#374151',
+      borderColor: '#4B5563',
+      color: 'white',
+      boxShadow: 'none',
+      '&:hover': {
+        borderColor: '#6366F1'
+      }
+    }),
+    menu: (base: any) => ({
+      ...base,
+      backgroundColor: '#1F2937',
+      color: 'white',
+      borderRadius: '0.375rem',
+      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+    }),
+    option: (base: any, state: { isSelected: any; isFocused: any; }) => ({
+      ...base,
+      backgroundColor: state.isSelected ? '#4F46E5' : state.isFocused ? '#374151' : '#1F2937',
+      ':active': {
+        backgroundColor: '#4F46E5'
+      },
+      color: 'white'
+    }),
+    singleValue: (base: any) => ({
+      ...base,
+      color: 'white'
+    }),
+    input: (base: any) => ({
+      ...base,
+      color: 'white'
+    }),
+    placeholder: (base: any) => ({
+      ...base,
+      color: '#9CA3AF'
+    })
   };
 
   return (
@@ -558,59 +615,64 @@ export default function Orders() {
       
       {/* Assignment Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-md w-full">
-            <div className="bg-indigo-50 px-6 py-4 border-b border-indigo-100 rounded-t-lg">
-              <h3 className="text-lg font-semibold text-indigo-700">Assign Technician</h3>
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 " onClick={() => setSelectedOrder("")}></div>
+          <div className="bg-[#1F2937] rounded-lg shadow-lg max-w-md w-full border border-gray-700 relative">
+            {/* Header */}
+            <div className="bg-[#111827] px-6 py-4 border-b border-gray-700 rounded-t-lg">
+              <h3 className="text-lg font-semibold text-white">Assign Technician</h3>
             </div>
-            
+
+            {/* Modal Content */}
             <div className="p-6">
+              {/* Technician Selection with react-select */}
               <div className="mb-4">
-                <label
-                  htmlFor="technician"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
+                <label htmlFor="technician-select" className="block text-sm font-medium text-gray-300 mb-1">
                   Select Technician
                 </label>
-                <select
-                  id="technician"
-                  value={selectedTechnician}
-                  onChange={(e) => setSelectedTechnician(e.target.value)}
-                  className="block w-full bg-white border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-2 text-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                >
-                  <option value="">Select a technician</option>
-                  {technicians.map((tech) => (
-                    <option key={tech.auth_id} value={tech.auth_id}>
-                      {tech.name} ({technicianActiveOrderCount(tech.auth_id)} active)
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-2 text-xs text-gray-500">
-                  Technicians can have up to 3 active orders at once.
-                </p>
-              </div>
-              <div className="flex justify-end space-x-3">
-                <button
-                  onClick={() => setSelectedOrder('')}
-                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm 
-                    text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleReassign}
-                  disabled={!selectedTechnician}
-                  className="px-4 py-2 border border-transparent rounded-md shadow-sm 
-                    text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 
-                    disabled:bg-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  Assign
-                </button>
-              </div>
+                <Select
+                  id="technician-select"
+                  options={technicianOptions}
+                  value={selectedTechnicianOption}
+                  onChange={setSelectedTechnicianOption}
+                  placeholder="Search for a technician..."
+                  isClearable
+                  isSearchable
+                  styles={customSelectStyles}
+                  className="react-select-container"
+                  classNamePrefix="react-select"
+                /><p className="mt-2 text-xs text-gray-400">
+                Technicians can have up to{" "}
+                <span className="text-indigo-400 font-semibold">3 active orders</span>{" "}
+                at once.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setSelectedOrder("")}
+                className="px-4 py-2 border border-gray-500 rounded-md shadow-sm 
+                  text-sm font-medium text-gray-300 bg-[#374151] hover:bg-gray-600 
+                  focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReassign}
+                disabled={!selectedTechnicianOption}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm 
+                  text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 
+                  disabled:bg-gray-500 disabled:cursor-not-allowed focus:outline-none 
+                  focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Assign
+              </button>
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    )}
+  </div>
+);
 }
