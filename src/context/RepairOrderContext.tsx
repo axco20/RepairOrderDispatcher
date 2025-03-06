@@ -12,17 +12,16 @@ interface RepairOrderContextType {
   reassignRepairOrder: (orderId: string, technicianId: string) => void;
   returnToQueue: (orderId: string) => void;
   updatePriority: (orderId: string, newPriority: number) => void;
+  updateOrderPosition: (sourceOrderId: string, targetOrderId: string) => void;
   pendingOrders: RepairOrder[];
   inProgressOrders: RepairOrder[];
   completedOrders: RepairOrder[];
   technicianOrders: (technicianId: string) => RepairOrder[];
   technicianActiveOrderCount: (technicianId: string) => number;
   canRequestNewOrder: (technicianId: string) => boolean;
-  
 }
 
 const RepairOrderContext = createContext<RepairOrderContextType>({
-  
   repairOrders: [],
   assignments: [],
   addRepairOrder: () => {},
@@ -31,6 +30,7 @@ const RepairOrderContext = createContext<RepairOrderContextType>({
   reassignRepairOrder: () => {},
   returnToQueue: () => {},
   updatePriority: () => {},
+  updateOrderPosition: () => {},
   pendingOrders: [],
   inProgressOrders: [],
   completedOrders: [],
@@ -76,6 +76,10 @@ export const RepairOrderProvider: React.FC<{ children: React.ReactNode }> = ({ c
     // Sort by priority first (lower number = higher priority)
     if (a.priority !== b.priority) {
       return a.priority - b.priority;
+    }
+    // Then sort by order position if present
+    if (a.position !== undefined && b.position !== undefined) {
+      return a.position - b.position;
     }
     // Then sort by creation date (older first)
     return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
@@ -237,6 +241,59 @@ export const RepairOrderProvider: React.FC<{ children: React.ReactNode }> = ({ c
     );
   };
 
+  // Update order position within the same priority group
+  const updateOrderPosition = (sourceOrderId: string, targetOrderId: string) => {
+    // Find the source and target orders
+    const sourceOrder = repairOrders.find(order => order.id === sourceOrderId);
+    const targetOrder = repairOrders.find(order => order.id === targetOrderId);
+    
+    if (!sourceOrder || !targetOrder) return;
+    
+    // Only proceed if both orders have the same priority
+    if (sourceOrder.priority !== targetOrder.priority) return;
+    
+    // Get all orders with the same priority and pending status
+    const ordersInSamePriority = repairOrders.filter(
+      order => order.priority === sourceOrder.priority && order.status === 'pending'
+    );
+    
+    // Sort them based on position or createdAt
+    ordersInSamePriority.sort((a, b) => {
+      if (a.position !== undefined && b.position !== undefined) {
+        return a.position - b.position;
+      }
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+    
+    // Find indices
+    const sourceIndex = ordersInSamePriority.findIndex(o => o.id === sourceOrderId);
+    const targetIndex = ordersInSamePriority.findIndex(o => o.id === targetOrderId);
+    
+    if (sourceIndex === -1 || targetIndex === -1) return;
+    
+    // Remove source from array and insert at new position
+    const reorderedList = [...ordersInSamePriority];
+    const [movedItem] = reorderedList.splice(sourceIndex, 1);
+    reorderedList.splice(targetIndex, 0, movedItem);
+    
+    // Update orders with new position values
+    const updatedOrders = [...repairOrders];
+    
+    // Update positions for reordered items only
+    reorderedList.forEach((order, idx) => {
+      const orderIndex = updatedOrders.findIndex(o => o.id === order.id);
+      if (orderIndex !== -1) {
+        updatedOrders[orderIndex] = {
+          ...updatedOrders[orderIndex],
+          position: idx,
+        };
+      }
+    });
+    
+    // Update state
+    setRepairOrders(updatedOrders);
+  };
+
   return (
     <RepairOrderContext.Provider 
       value={{ 
@@ -248,6 +305,7 @@ export const RepairOrderProvider: React.FC<{ children: React.ReactNode }> = ({ c
         reassignRepairOrder, 
         returnToQueue, 
         updatePriority,
+        updateOrderPosition,
         pendingOrders,
         inProgressOrders,
         completedOrders,

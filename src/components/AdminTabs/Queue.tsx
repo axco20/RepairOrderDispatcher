@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { useRepairOrders } from '@/context/RepairOrderContext';
 import { 
   Menu,
-  AlertCircle,
   MoreHorizontal,
   ArrowUp,
   ArrowDown,
@@ -43,9 +42,9 @@ const QueueManagement: React.FC = () => {
   const { 
     pendingOrders, 
     updatePriority, 
+    updateOrderPosition,
     inProgressOrders, 
     completedOrders,
-    addRepairOrder 
   } = useRepairOrders();
   
   const [draggedOrder, setDraggedOrder] = useState<string | null>(null);
@@ -73,11 +72,16 @@ const QueueManagement: React.FC = () => {
       }
     });
     
-    // Sort orders within each priority group by creation date
+    // Sort orders within each priority group by position or creation date
     Object.keys(grouped).forEach(priority => {
-      grouped[Number(priority)].sort((a, b) => 
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
+      grouped[Number(priority)].sort((a, b) => {
+        // Sort by position if available
+        if (a.position !== undefined && b.position !== undefined) {
+          return a.position - b.position;
+        }
+        // Fall back to date sorting
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
     });
     
     setOrdersByPriority(grouped);
@@ -141,22 +145,10 @@ const QueueManagement: React.FC = () => {
       return;
     }
     
-    // If dropping within the same priority group, reorder by adjusting priorities
-    const ordersInSamePriority = ordersByPriority[targetPriority];
-    const sourceIndex = ordersInSamePriority.findIndex(o => o.id === sourceOrderId);
-    const targetIndex = ordersInSamePriority.findIndex(o => o.id === targetOrderId);
-    
-    // Remove source from array
-    const newOrder = [...ordersInSamePriority];
-    const [movedItem] = newOrder.splice(sourceIndex, 1);
-    
-    // Insert at new position
-    newOrder.splice(targetIndex, 0, movedItem);
-    
-    // Update all orders with new priority values
-    // This would require a more sophisticated implementation in a real app
-    // For now, just update the source priority to match target
-    updatePriority(sourceOrderId, targetPriority);
+    // If dropping within the same priority group, reorder
+    if (sourceOrder.priority === targetOrder.priority) {
+      updateOrderPosition(sourceOrderId, targetOrderId);
+    }
   };
   
   // Handle dropping onto a priority section
@@ -271,6 +263,8 @@ const QueueManagement: React.FC = () => {
                           onDragEnd={handleDragEnd}
                           onDragOver={(e) => handleDragOver(e, order.id)}
                           onDrop={(e) => handleDrop(e, order.id, priorityNum)}
+                          data-order-id={order.id}
+                          data-order-index={index}
                         >
                           <div className="flex items-center">
                             <GripVertical className="h-5 w-5 text-gray-400 cursor-move mr-2" />
@@ -280,6 +274,9 @@ const QueueManagement: React.FC = () => {
                               </div>
                               <div className="text-xs text-gray-500">
                                 ID: {order.id.substring(0, 8)}...
+                                {order.position !== undefined && (
+                                  <span className="ml-2">Pos: {order.position}</span>
+                                )}
                               </div>
                             </div>
                             <div className="flex space-x-2 items-center">

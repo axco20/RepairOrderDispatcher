@@ -23,7 +23,7 @@ const TechSidebar: React.FC<TechSidebarProps> = ({
   return (
     <div className="w-64 bg-gray-800 text-white flex flex-col h-screen">
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-gray-700 bg-indigo-600">
+      <div className="p-4 border-b border-gray-700 bg-grey-400">
         <h2 className="text-xl font-bold">Repair Order</h2>
         <p className="text-sm text-gray-300">Management System</p>
       </div>

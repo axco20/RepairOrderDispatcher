@@ -6,9 +6,6 @@ import {
   List, 
   FileText, 
   BarChart2, 
-  Clock, 
-  AlertTriangle, 
-  Settings, 
   HelpCircle, 
   LogOut 
 } from 'lucide-react';
@@ -20,9 +17,6 @@ export type AdminPage =
   | 'Queue'
   | 'Orders'
   | 'Performance'
-  | 'Turnaround'
-  | 'Alerts'
-  | 'Settings'
   | 'Help';
 
 interface AdminSidebarProps {
@@ -46,7 +40,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
   return (
     <div className="w-64 bg-gray-800 text-white flex flex-col h-screen">
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-gray-700 bg-indigo-600">
+      <div className="p-4 border-b border-gray-700 bg-grey-400">
         <h2 className="text-xl font-bold">Repair Order</h2>
         <p className="text-sm text-gray-300">Management System</p>
       </div>
@@ -127,17 +121,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
               <span className="ml-3">Performance</span>
             </button>
           </li>
-          <li className="mb-1">
-            <button
-              className={`flex items-center w-full p-3 rounded-md ${
-                activePage === 'Turnaround' ? 'bg-indigo-700' : 'hover:bg-gray-700'
-              }`}
-              onClick={() => onNavigate('Turnaround')}
-            >
-              <Clock size={18} />
-              <span className="ml-3">Turnaround Time</span>
-            </button>
-          </li>
         </ul>
 
         <div className="p-3">
@@ -145,30 +128,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
 
         <ul className="p-2">
-          <li className="mb-1">
-            <button
-              className={`flex items-center w-full p-3 rounded-md ${
-                activePage === 'Alerts' ? 'bg-indigo-700' : 'hover:bg-gray-700'
-              }`}
-              onClick={() => onNavigate('Alerts')}
-            >
-              <AlertTriangle size={18} />
-              <span className="ml-3">Alerts</span>
-              {/* Example: could pass down a alertsCount prop if needed */}
-              <span className="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">3</span>
-            </button>
-          </li>
-          <li className="mb-1">
-            <button
-              className={`flex items-center w-full p-3 rounded-md ${
-                activePage === 'Settings' ? 'bg-indigo-700' : 'hover:bg-gray-700'
-              }`}
-              onClick={() => onNavigate('Settings')}
-            >
-              <Settings size={18} />
-              <span className="ml-3">Settings</span>
-            </button>
-          </li>
           <li className="mb-1">
             <button
               className={`flex items-center w-full p-3 rounded-md ${

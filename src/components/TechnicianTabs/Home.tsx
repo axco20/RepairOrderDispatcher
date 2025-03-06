@@ -3,10 +3,22 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRepairOrders } from "@/context/RepairOrderContext";
-import { Clock, BarChart4, Calendar } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { Clock, BarChart4 } from "lucide-react";
+import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from "recharts";
 
-export default function Home() {
+interface HomeProps {
+  activeOrderCount?: number;
+  canGetNewOrder?: boolean;
+  pendingOrdersCount?: number;
+  getNextRepairOrder?: () => void;
+}
+
+export default function Home({
+  activeOrderCount: propActiveOrderCount,
+  canGetNewOrder: propCanGetNewOrder,
+  pendingOrdersCount,
+  getNextRepairOrder
+}: HomeProps) {
   const { currentUser } = useAuth();
   const { 
     technicianActiveOrderCount,
@@ -17,29 +29,22 @@ export default function Home() {
   } = useRepairOrders();
 
   const [dateRange, setDateRange] = useState<"week" | "month" | "year">("week");
-  const [chartData, setChartData] = useState<any[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-
-  if (!currentUser) return <p>Loading...</p>;
-
-  const activeOrderCount = technicianActiveOrderCount(currentUser.id);
-  const canGetNewOrder = canRequestNewOrder(currentUser.id);
-  const myOrders = technicianOrders(currentUser.id);
-  const activeOrders = myOrders.filter(order => order.status === "in_progress");
-  const completedOrders = myOrders.filter(order => order.status === "completed");
+  const [chartData, setChartData] = useState<Array<{date: string; orders: number}>>([]);
 
   // Generate data for the chart based on selected date range
   useEffect(() => {
+    // If no user, don't try to generate chart data
+    if (!currentUser) return;
+    
     const generateChartData = () => {
       // Get all assignments for this technician
       const myAssignments = assignments.filter(
         assignment => assignment.technicianId === currentUser.id
       );
 
-      let data: any[] = [];
+      const data: Array<{date: string; orders: number}> = [];
       const now = new Date();
       let startDate: Date;
-      let format: string;
       let groupBy: (date: Date) => string;
 
       switch (dateRange) {
@@ -47,21 +52,18 @@ export default function Home() {
           // Last 7 days
           startDate = new Date();
           startDate.setDate(startDate.getDate() - 6);
-          format = "MM/DD";
           groupBy = (date) => `${date.getMonth() + 1}/${date.getDate()}`;
           break;
         case "month":
           // Last 30 days
           startDate = new Date();
           startDate.setDate(startDate.getDate() - 29);
-          format = "MM/DD";
           groupBy = (date) => `${date.getMonth() + 1}/${date.getDate()}`;
           break;
         case "year":
           // Last 12 months
           startDate = new Date();
           startDate.setMonth(startDate.getMonth() - 11);
-          format = "MMM YY";
           groupBy = (date) => {
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
             return `${months[date.getMonth()]} ${date.getFullYear().toString().slice(2)}`;
@@ -70,12 +72,11 @@ export default function Home() {
         default:
           startDate = new Date();
           startDate.setDate(startDate.getDate() - 6);
-          format = "MM/DD";
           groupBy = (date) => `${date.getMonth() + 1}/${date.getDate()}`;
       }
 
       // Initialize data array with dates
-      let currentDate = new Date(startDate);
+      const currentDate = new Date(startDate);
       while (currentDate <= now) {
         data.push({
           date: groupBy(currentDate),
@@ -107,11 +108,36 @@ export default function Home() {
     };
 
     setChartData(generateChartData());
-  }, [dateRange, assignments, currentUser.id]);
+  }, [dateRange, assignments, currentUser]);
+
+  // If no user, show loading
+  if (!currentUser) return <p>Loading...</p>;
+
+  // Use props if provided, otherwise get from context
+  const activeOrderCount = propActiveOrderCount !== undefined ? propActiveOrderCount : technicianActiveOrderCount(currentUser.id);
+  const canGetNewOrder = propCanGetNewOrder !== undefined ? propCanGetNewOrder : canRequestNewOrder(currentUser.id);
+  const myOrders = technicianOrders(currentUser.id);
+  const activeOrders = myOrders.filter(order => order.status === "in_progress");
+  const completedOrders = myOrders.filter(order => order.status === "completed");
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-800">Dashboard Overview</h2>
+      {/* Updated header with button */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Dashboard Overview</h2>
+        <div className="flex items-center space-x-4">
+          <span className="text-sm px-3 py-1 bg-white rounded-md shadow text-gray-700">
+            Active Orders: <strong className="text-indigo-600">{activeOrderCount}/3</strong>
+          </span>
+          <button
+            onClick={getNextRepairOrder}
+            disabled={!canGetNewOrder || (pendingOrdersCount !== undefined && pendingOrdersCount === 0)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow text-sm disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+          >
+            Get Next Repair Order
+          </button>
+        </div>
+      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -211,7 +237,7 @@ export default function Home() {
         </div>
         
         <p className="text-sm text-gray-500 mt-4 text-center">
-          This chart shows the number of repair orders you've processed over time.
+          This chart shows the number of repair orders you&apos;ve processed over time.
         </p>
       </div>
 
@@ -221,11 +247,11 @@ export default function Home() {
         <ul className="space-y-2 text-gray-700">
           <li className="flex items-start">
             <span className="h-6 w-6 rounded-full bg-indigo-100 text-indigo-800 flex items-center justify-center mr-2 flex-shrink-0">1</span>
-            <span>Click <strong>"Get Next Repair Order"</strong> in the header to receive a repair order from the queue.</span>
+            <span>Click <strong>&quot;Get Next Repair Order&quot;</strong> in the header to receive a repair order from the queue.</span>
           </li>
           <li className="flex items-start">
             <span className="h-6 w-6 rounded-full bg-indigo-100 text-indigo-800 flex items-center justify-center mr-2 flex-shrink-0">2</span>
-            <span>View your active orders in the <strong>"Active Orders"</strong> tab.</span>
+            <span>View your active orders in the <strong>&quot;Active Orders&quot;</strong> tab.</span>
           </li>
           <li className="flex items-start">
             <span className="h-6 w-6 rounded-full bg-indigo-100 text-indigo-800 flex items-center justify-center mr-2 flex-shrink-0">3</span>

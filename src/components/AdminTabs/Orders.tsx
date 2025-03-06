@@ -13,9 +13,7 @@ import {
   FileText,
   Clock,
   AlertCircle,
-  User,
-  Tag
-} from 'lucide-react';
+  User,} from 'lucide-react';
 
 interface Technician {
   id: string;
@@ -408,7 +406,7 @@ export default function Orders() {
                       <div className="flex flex-col items-center">
                         <FileText className="h-12 w-12 text-gray-300 mb-2" />
                         <p>No pending repair orders</p>
-                        <p className="text-sm mt-1">Click "Add Repair Order" to create a new one</p>
+                        <p className="text-sm mt-1">Click &quot;Add Repair Order&quot; to create a new one</p>
                       </div>
                     </td>
                   </tr>

@@ -282,7 +282,7 @@ const TeamMembers: React.FC = () => {
             />
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => setIsModal2Open(false)}
                 className="bg-gray-400 text-white px-4 py-2 rounded-md"
               >
                 Cancel

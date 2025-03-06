@@ -39,28 +39,16 @@ export default function TechnicianDashboard() {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-20 bg-indigo-600 text-white shadow">
-          <div className="flex justify-between items-center p-4">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold">Technician Dashboard</h1>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm">
-                Active Orders: <strong>{activeOrderCount}/3</strong>
-              </span>
-              <button
-                onClick={getNextRepairOrder}
-                disabled={!canGetNewOrder || pendingOrders.length === 0}
-                className="bg-indigo-700 hover:bg-indigo-800 text-white px-4 py-2 rounded text-sm disabled:bg-gray-500"
-              >
-                Get Next Repair Order
-              </button>
-            </div>
-          </div>
-        </header>
-
         <main className="flex-1 overflow-y-auto p-6 bg-gray-100">
-          {activePage === "Home" && <Home />}
+          {/* Dashboard content without header */}
+          {activePage === "Home" && (
+            <Home 
+              activeOrderCount={activeOrderCount}
+              canGetNewOrder={canGetNewOrder}
+              pendingOrdersCount={pendingOrders.length}
+              getNextRepairOrder={getNextRepairOrder}
+            />
+          )}
           {activePage === "ActiveOrders" && <ActiveOrders />}
           {activePage === "CompletedOrders" && <CompletedOrders />}
           {activePage === "Help" && <Help />}
