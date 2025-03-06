@@ -190,44 +190,41 @@ export default function Orders() {
 
   // Custom styles for react-select
   const customSelectStyles = {
-    control: (base: any) => ({
-      ...base,
+    control: (baseStyles: React.CSSProperties, ): React.CSSProperties => ({
+      ...baseStyles,
       backgroundColor: '#374151',
       borderColor: '#4B5563',
       color: 'white',
       boxShadow: 'none',
-      '&:hover': {
-        borderColor: '#6366F1'
-      }
+      
     }),
-    menu: (base: any) => ({
-      ...base,
+    menu: (baseStyles: React.CSSProperties): React.CSSProperties => ({
+      ...baseStyles,
       backgroundColor: '#1F2937',
       color: 'white',
       borderRadius: '0.375rem',
       boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
     }),
-    option: (base: any, state: { isSelected: any; isFocused: any; }) => ({
-      ...base,
+    option: (baseStyles: React.CSSProperties, state: { isSelected: boolean; isFocused: boolean }): React.CSSProperties => ({
+      ...baseStyles,
       backgroundColor: state.isSelected ? '#4F46E5' : state.isFocused ? '#374151' : '#1F2937',
-      ':active': {
-        backgroundColor: '#4F46E5'
-      },
+      
       color: 'white'
     }),
-    singleValue: (base: any) => ({
-      ...base,
+    singleValue: (baseStyles: React.CSSProperties): React.CSSProperties => ({
+      ...baseStyles,
       color: 'white'
     }),
-    input: (base: any) => ({
-      ...base,
+    input: (baseStyles: React.CSSProperties): React.CSSProperties => ({
+      ...baseStyles,
       color: 'white'
     }),
-    placeholder: (base: any) => ({
-      ...base,
+    placeholder: (baseStyles: React.CSSProperties): React.CSSProperties => ({
+      ...baseStyles,
       color: '#9CA3AF'
     })
   };
+
 
   return (
     <div className="p-6">
