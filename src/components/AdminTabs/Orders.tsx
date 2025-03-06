@@ -2,12 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRepairOrders } from '@/context/RepairOrderContext';
-import { RepairOrder } from '@/schemas';
 import { supabase } from '@/lib/supabaseClient';
 import {
   Plus,
-  ArrowUp,
-  ArrowDown,
   Check,
   RefreshCw,
   FileText,
@@ -35,7 +32,6 @@ export default function Orders() {
     addRepairOrder,
     reassignRepairOrder,
     returnToQueue,
-    updatePriority,
     technicianActiveOrderCount,
   } = useRepairOrders();
 
@@ -174,27 +170,6 @@ export default function Orders() {
   // Return an order to the queue
   const handleReturnToQueue = (orderId: string) => {
     returnToQueue(orderId);
-  };
-
-  // Increase or decrease priority
-  const handlePriorityChange = (order: RepairOrder, increase: boolean) => {
-    // Get current priority
-    const currentPriority = order.priority;
-    
-    // Calculate new priority
-    let newPriority: number;
-    if (increase) {
-      // Limit to highest priority (1 = WAIT)
-      newPriority = Math.max(1, currentPriority - 1);
-    } else {
-      // Limit to lowest priority (3 = LOANER)
-      newPriority = Math.min(3, currentPriority + 1);
-    }
-    
-    // Only update if changed
-    if (newPriority !== currentPriority) {
-      updatePriority(order.id, newPriority);
-    }
   };
 
   return (
@@ -394,7 +369,6 @@ export default function Orders() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Repair Order ID</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority Type</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -402,7 +376,7 @@ export default function Orders() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {pendingOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                       <div className="flex flex-col items-center">
                         <FileText className="h-12 w-12 text-gray-300 mb-2" />
                         <p>No pending repair orders</p>
@@ -421,25 +395,6 @@ export default function Orders() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">{order.description}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm text-gray-900">{order.priority}</span>
-                          <div className="flex flex-col">
-                            <button 
-                              onClick={() => handlePriorityChange(order, true)}
-                              className="text-gray-400 hover:text-gray-600"
-                            >
-                              <ArrowUp className="h-3 w-3" />
-                            </button>
-                            <button 
-                              onClick={() => handlePriorityChange(order, false)}
-                              className="text-gray-400 hover:text-gray-600"
-                            >
-                              <ArrowDown className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPriorityClass(order.priority)}`}>
@@ -471,7 +426,7 @@ export default function Orders() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Repair Order ID</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority Type</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -544,7 +499,7 @@ export default function Orders() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed At</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority Type</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
