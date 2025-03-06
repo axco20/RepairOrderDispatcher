@@ -1,6 +1,7 @@
 export interface RepairOrder {
     id: string;
     description: string;
+    orderDescription: string;
     createdAt: string;
     status: 'pending' | 'in_progress' | 'completed';
     priority: number;

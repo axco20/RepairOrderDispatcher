@@ -273,7 +273,7 @@ const QueueManagement: React.FC = () => {
                                 {order.description}
                               </div>
                               <div className="text-xs text-gray-500">
-                                ID: {order.id.substring(0, 8)}...
+                                ID: {order.description}
                                 {order.position !== undefined && (
                                   <span className="ml-2">Pos: {order.position}</span>
                                 )}

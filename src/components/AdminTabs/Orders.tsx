@@ -51,7 +51,7 @@ export default function Orders() {
   const [description, setDescription] = useState('');
   const [selectedPriority, setSelectedPriority] = useState<PriorityType>('VALET');
   const [showAddForm, setShowAddForm] = useState(false);
-
+  const [orderDescription, setOrderDescription] = useState('');
   // State for reassigning
   const [selectedTechnicianOption, setSelectedTechnicianOption] = useState<TechnicianOption | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<string>('');
@@ -127,6 +127,7 @@ export default function Orders() {
   // Reset form and feedback
   const resetForm = () => {
     setDescription('');
+    setOrderDescription('');
     setSelectedPriority('VALET');
     setFormError('');
   };
@@ -158,6 +159,7 @@ export default function Orders() {
     // Add the order with the provided information
     addRepairOrder({ 
       description: description.trim(),
+      orderDescription: orderDescription,
       priority: priorityValue,
       priorityType: selectedPriority
     });
@@ -284,6 +286,25 @@ export default function Orders() {
                     focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                   required
                   placeholder="Enter repair order ID"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="orderDescription"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Order Description
+                </label>
+                <input
+                  id="orderDescription"
+                  type="text"
+                  value={orderDescription}
+                  onChange={(e) => setOrderDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
+                    focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  required
+                  placeholder="Enter repair order description"
                 />
               </div>
               
@@ -420,7 +441,6 @@ export default function Orders() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Repair Order ID</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority Type</th>
@@ -441,14 +461,11 @@ export default function Orders() {
                 ) : (
                   pendingOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.id.substring(0, 8)}...
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="font-medium text-gray-900">{order.description}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{order.description}</div>
+                        <div className="text-sm text-gray-900">{order.orderDescription}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPriorityClass(order.priority)}`}>
@@ -476,7 +493,6 @@ export default function Orders() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Repair Order ID</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
@@ -497,14 +513,11 @@ export default function Orders() {
                 ) : (
                   inProgressOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.id.substring(0, 8)}...
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="font-medium text-gray-900">{order.description}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{order.description}</div>
+                        <div className="text-sm text-gray-900">{order.orderDescription}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -548,7 +561,6 @@ export default function Orders() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Repair Order ID</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
@@ -569,14 +581,11 @@ export default function Orders() {
                 ) : (
                   completedOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.id.substring(0, 8)}...
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="font-medium text-gray-900">{order.description}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{order.description}</div>
+                        <div className="text-sm text-gray-900">{order.orderDescription}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
