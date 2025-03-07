@@ -43,8 +43,8 @@ const AddAdmin: React.FC = () => {
       setName("");
       setEmail("");
       setPasscode("");
-    } catch (err) {
-      setMessage(`❌ Error:`);
+    } catch (error) {
+      setMessage(`❌ Error:` + error);
     }
   };
 
