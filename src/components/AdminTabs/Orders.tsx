@@ -190,42 +190,6 @@ export default function Orders() {
     returnToQueue(orderId);
   };
 
-  // Custom styles for react-select
-  const customSelectStyles = {
-    control: (baseStyles: React.CSSProperties, ): React.CSSProperties => ({
-      ...baseStyles,
-      backgroundColor: '#374151',
-      borderColor: '#4B5563',
-      color: 'white',
-      boxShadow: 'none',
-      
-    }),
-    menu: (baseStyles: React.CSSProperties): React.CSSProperties => ({
-      ...baseStyles,
-      backgroundColor: '#1F2937',
-      color: 'white',
-      borderRadius: '0.375rem',
-      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
-    }),
-    option: (baseStyles: React.CSSProperties, state: { isSelected: boolean; isFocused: boolean }): React.CSSProperties => ({
-      ...baseStyles,
-      backgroundColor: state.isSelected ? '#4F46E5' : state.isFocused ? '#374151' : '#1F2937',
-      
-      color: 'white'
-    }),
-    singleValue: (baseStyles: React.CSSProperties): React.CSSProperties => ({
-      ...baseStyles,
-      color: 'white'
-    }),
-    input: (baseStyles: React.CSSProperties): React.CSSProperties => ({
-      ...baseStyles,
-      color: 'white'
-    }),
-    placeholder: (baseStyles: React.CSSProperties): React.CSSProperties => ({
-      ...baseStyles,
-      color: '#9CA3AF'
-    })
-  };
 
 
   return (
@@ -644,7 +608,6 @@ export default function Orders() {
                   placeholder="Search for a technician..."
                   isClearable
                   isSearchable
-                  styles={customSelectStyles}
                   className="react-select-container"
                   classNamePrefix="react-select"
                 /><p className="mt-2 text-xs text-gray-400">
