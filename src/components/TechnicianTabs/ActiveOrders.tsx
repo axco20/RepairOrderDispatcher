@@ -23,7 +23,7 @@ export default function ActiveOrders() {
         <div className="bg-white rounded-lg shadow p-6 text-center">
           <p className="text-gray-500">No active repair orders</p>
           <p className="text-sm text-gray-400 mt-2">
-            Click "Get Next Repair Order" to receive a new order from the queue
+            Click &quot;Get Next Repair Order&quot; to receive a new order from the queue
           </p>
         </div>
       ) : (

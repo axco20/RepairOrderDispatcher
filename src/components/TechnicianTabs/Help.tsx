@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { HelpCircle, FileText, Clock, CheckCircle, AlertTriangle } from "lucide-react";
+import { HelpCircle, FileText, Clock, AlertTriangle } from "lucide-react";
 
 export default function Help() {
   return (
@@ -19,12 +19,12 @@ export default function Help() {
             <div className="border-b pb-4">
               <h4 className="font-medium text-indigo-600 mb-2">How do I get a new repair order?</h4>
               <p className="text-gray-700">
-                Click the "Get Next Repair Order" button in the header to receive the next order from the queue. Orders are assigned based on priority and creation time.
+                Click the &quot;Get Next Repair Order&quot; button in the header to receive the next order from the queue. Orders are assigned based on priority and creation time.
               </p>
             </div>
             
             <div className="border-b pb-4">
-              <h4 className="font-medium text-indigo-600 mb-2">Why can't I get a new repair order?</h4>
+              <h4 className="font-medium text-indigo-600 mb-2">Why can&apos;t I get a new repair order?</h4>
               <p className="text-gray-700">
                 There are two possible reasons:
               </p>
@@ -37,7 +37,7 @@ export default function Help() {
             <div className="border-b pb-4">
               <h4 className="font-medium text-indigo-600 mb-2">How do I mark an order as complete?</h4>
               <p className="text-gray-700">
-                Go to the "Active Orders" tab and click the "Mark Complete" button next to the order you've finished.
+                Go to the &quot;Active Orders&quot; tab and click the &quot;Mark Complete&quot; button next to the order you&apos;ve finished.
               </p>
             </div>
             
