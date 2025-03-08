@@ -112,7 +112,7 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   // Create a new repair order
-  const createRepairOrder = async (data: Omit<RepairOrder, 'id' | 'createdAt'>): Promise<RepairOrder | null> => {
+  const createRepairOrder = async (data): Promise<RepairOrder | null> => {
     try {
       // Convert our camelCase data to snake_case for the database
       const dbData = {

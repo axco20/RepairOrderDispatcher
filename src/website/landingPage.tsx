@@ -89,7 +89,7 @@ const LandingPage: FC<LandingPageProps> = ({ onLogin }) => {
    // },
     {
       name: "Enterprise",
-      price: "FREE TESTING TRIAL",
+      price: "Free Alpha Access",
       description: "For large service centers with multiple locations",
       features: [
         "Unlimited technician accounts",

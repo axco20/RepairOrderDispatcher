@@ -20,7 +20,7 @@ const Orders: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
-    id: "",
+    description: "",
     orderDescription: "", 
     priority: 1,
     priorityType: "WAIT" as "WAIT" | "VALET" | "LOANER",
@@ -34,7 +34,7 @@ const Orders: React.FC = () => {
   // Filtered orders based on search query
   const filteredOrders = repairOrders.filter(
     (order) =>
-      order.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.orderDescription?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -57,28 +57,28 @@ const Orders: React.FC = () => {
     e.preventDefault();
     try {
       // Make sure required fields are present
-      if (!formData.id) {
-        toast.error("Description is required.");
+      if (!formData.description) {
+        toast.error("❌ Description is required.");
         return;
       }
 
-      const result = await createRepairOrder(id);
+      const result = await createRepairOrder(formData);
 
       if (result) {
-        toast.success("Repair order created successfully!");
+        toast.success("✅ Repair order created successfully!");
         setShowForm(false);
         setFormData({
-          id: "",
+          description: "",
           orderDescription: "",
           priority: 1,
           priorityType: "WAIT",
           status: "pending"
         });
       } else {
-        toast.error("Failed to create repair order.");
+        toast.error("❌ Failed to create repair order.");
       }
     } catch (error) {
-      toast.error("Error creating repair order: " + error);
+      toast.error("❌ Error creating repair order: " + error);
     }
   };
 
@@ -266,15 +266,15 @@ const Orders: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Order ID *
+                    Description *
                   </label>
                   <input
                     type="text"
-                    name="id"
-                    value={formData.id}
+                    name="description"
+                    value={formData.description}
                     onChange={handleInputChange}
                     required
-                    placeholder="Order ID"
+                    placeholder="Brief issue description"
                     className="w-full p-2 border border-gray-300 rounded"
                   />
                 </div>

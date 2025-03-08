@@ -1,134 +1,132 @@
-import React, { FC, useState } from 'react';
-import { PricingPlan } from '../types';
+import React, { useState } from 'react';
+import { FaCheck } from 'react-icons/fa';
+import * as RadixSwitch from '@radix-ui/react-switch';
+import * as RadixAccordion from '@radix-ui/react-accordion';
+import { ChevronDown } from 'lucide-react';
+
+interface PricingPlan {
+  name: string;
+  description: string;
+  price: string;
+  features: string[];
+  popular?: boolean;
+}
 
 interface PricingProps {
   pricingPlans: PricingPlan[];
 }
 
-const Pricing: FC<PricingProps> = ({ pricingPlans }) => {
+const Switch: React.FC<{ checked: boolean; onCheckedChange: () => void }> = ({ checked, onCheckedChange }) => (
+  <RadixSwitch.Root
+    className={`relative w-16 h-8 rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center px-1 ${checked ? 'bg-blue-600' : 'bg-gray-300'}`}
+    checked={checked}
+    onCheckedChange={onCheckedChange}
+  >
+    <RadixSwitch.Thumb className={`block w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ${checked ? 'translate-x-8' : 'translate-x-0'}`} />
+  </RadixSwitch.Root>
+);
+
+const Accordion: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <RadixAccordion.Root type="single" collapsible className="w-full max-w-3xl mx-auto">
+    {children}
+  </RadixAccordion.Root>
+);
+
+const AccordionItem: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <RadixAccordion.Item className="border-b border-gray-200 py-2" value={title}>
+    <RadixAccordion.Trigger className="w-full flex justify-between items-center text-left text-lg font-semibold py-4 px-4 cursor-pointer hover:text-blue-600 transition-colors">
+      {title}
+      <ChevronDown className="h-5 w-5 transition-transform ui-open:rotate-180" />
+    </RadixAccordion.Trigger>
+    <RadixAccordion.Content className="text-gray-600 py-4 px-4 text-left">
+      {children}
+    </RadixAccordion.Content>
+  </RadixAccordion.Item>
+);
+
+const Pricing: React.FC<PricingProps> = ({ pricingPlans }) => {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
-  
-  // FAQ data
+
   const faqs = [
-    {
-      question: "How long is the free trial?",
-      answer: "Our free trial lasts for 14 days. No credit card is required to start your trial, and you'll have full access to all features of your selected plan."
-    },
-    {
-      question: "Can I change plans later?",
-      answer: "Yes, you can upgrade or downgrade your plan at any time. When upgrading, you'll be prorated for the remainder of your billing cycle. When downgrading, changes will take effect at the next billing cycle."
-    },
-    {
-      question: "Is there a setup fee?",
-      answer: "No, there are no setup fees for any of our plans. You only pay the advertised monthly or annual subscription price."
-    },
-    {
-      question: "Do you offer multi-location discounts?",
-      answer: "Yes, for businesses with multiple locations, we offer volume discounts. Please contact our sales team for a custom quote tailored to your specific needs."
-    },
-    {
-      question: "Can I integrate with my existing systems?",
-      answer: "Our Enterprise plan includes API access and custom integrations with popular automotive management software. Our support team can help determine the best integration path for your specific systems."
-    },
-    {
-      question: "How does the billing work?",
-      answer: "We offer both monthly and annual billing options. Annual plans receive a 20% discount compared to monthly billing. All major credit cards are accepted."
-    }
+    { question: "How long is the free trial?", answer: "Our free trial lasts for 14 days. No credit card is required." },
+    { question: "Can I change plans later?", answer: "Yes, you can upgrade or downgrade your plan at any time." },
+    { question: "Is there a setup fee?", answer: "No, there are no setup fees for any of our plans." },
+    { question: "Do you offer multi-location discounts?", answer: "Yes, we offer volume discounts for businesses with multiple locations. Contact our sales team for custom pricing." },
   ];
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-      <h1 className="text-4xl font-bold text-center text-gray-900 mb-6">
-        Simple, Transparent Pricing
-      </h1>
-      <p className="text-xl text-gray-600 mb-12 text-center max-w-3xl mx-auto">
-        Choose the plan that fits your repair shop&apos;s needs. All plans include our core features with no hidden fees.
-      </p>
-      
-      {/* Pricing toggle */}
-      <div className="flex justify-center mb-12">
-        <div className="bg-gray-100 p-1 rounded-full">
-          <button 
-            className={`px-6 py-2 rounded-full ${
-              billingPeriod === 'monthly' ? 'bg-blue-600 text-white' : 'text-gray-700'
-            }`}
-            onClick={() => setBillingPeriod('monthly')}
-          >
-            Monthly
-          </button>
-          <button 
-            className={`px-6 py-2 rounded-full ${
-              billingPeriod === 'annual' ? 'bg-blue-600 text-white' : 'text-gray-700'
-            }`}
-            onClick={() => setBillingPeriod('annual')}
-          >
-            Annual (Save 20%)
-          </button>
+    <section className="max-w-7xl mx-auto px-6 py-24 space-y-20">
+      <div className="space-y-8 text-center">
+        <h1 className="text-4xl md:text-5xl font-bold text-gray-900">Simple, Transparent Pricing</h1>
+        <p className="text-xl text-gray-600 max-w-2xl mx-auto">Choose the perfect plan for your repair shop.</p>
+
+        {/* Billing Toggle */}
+        <div className="flex justify-center items-center space-x-4 mt-12">
+          <span className={`text-lg ${billingPeriod === 'monthly' ? 'text-blue-600 font-medium' : 'text-gray-700'}`}>Monthly</span>
+          <Switch 
+            checked={billingPeriod === 'annual'}
+            onCheckedChange={() => setBillingPeriod(billingPeriod === 'monthly' ? 'annual' : 'monthly')}
+          />
+          <span className={`text-lg ${billingPeriod === 'annual' ? 'text-blue-600 font-medium' : 'text-gray-700'}`}>Annual (Save 20%)</span>
         </div>
       </div>
-      
-      {/* Pricing cards */}
-      <div className="grid md:grid-cols-3 gap-8">
+
+      {/* Pricing Cards */}
+<div className="grid place-items-center sm:grid-cols-1 gap-8 max-w-6xl mx-auto">
         {pricingPlans.map((plan, index) => (
           <div 
             key={index} 
-            className={`bg-white rounded-lg shadow-lg ${plan.popular ? 'border-2 border-blue-600 relative' : ''}`}
+            className={`relative bg-white shadow-xl rounded-2xl p-8 border-2 transition-all duration-300 hover:-translate-y-2 ${
+              plan.popular ? 'border-blue-600 ring-4 ring-blue-100' : 'border-gray-200'
+            }`}
           >
             {plan.popular && (
-              <div className="absolute top-0 inset-x-0 transform -translate-y-1/2">
-                <div className="bg-blue-600 text-white text-sm font-semibold py-1 px-3 rounded-full inline-block">
-                  Most Popular
-                </div>
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white text-sm font-semibold px-4 py-1 rounded-full shadow-md">
+                Most Popular
               </div>
             )}
-            <div className="p-8">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
-              <p className="text-gray-600 mb-6">{plan.description}</p>
-              <div className="mb-6">
-                <span className="text-4xl font-bold text-gray-900">
-                  {billingPeriod === 'annual' 
-                    ? `$${Math.round(parseInt(plan.price.replace('$', '')) * 0.8 * 12)}`
-                    : plan.price}
-                </span>
-                <span className="text-gray-600">/{billingPeriod === 'annual' ? 'year' : 'month'}</span>
+            <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{plan.name}</h3>
+            <p className="text-gray-600 h-12">{plan.description}</p>
+            
+            <div className="my-6 text-center">
+              <div className="text-4xl md:text-5xl font-bold text-gray-900">
+                {billingPeriod === 'annual' 
+                  ? `$${Math.round(parseInt(plan.price.replace('$', '')) * 0.8 * 12)}`
+                  : plan.price}
               </div>
-              <ul className="space-y-3 mb-8">
-                {plan.features.map((feature, i) => (
-                  <li key={i} className="flex items-start">
-                    <svg className="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-600">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-              <button 
-                className={`w-full py-3 rounded-lg font-medium ${
-                  plan.popular 
-                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                } transition-colors`}
-              >
-                {plan.popular ? 'Start Free Trial' : 'Choose Plan'}
-              </button>
+              <div className="text-gray-600 mt-1">per {billingPeriod === 'annual' ? 'year' : 'month'}</div>
             </div>
+            
+            <ul className="mt-8 space-y-4">
+              {plan.features.map((feature, i) => (
+                <li key={i} className="flex items-start text-gray-700">
+                  <FaCheck className="text-blue-600 mt-1 mr-3 flex-shrink-0" /> 
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
+            
+            <button className={`w-full mt-8 py-3 rounded-lg font-medium text-lg transition-all duration-300 ${
+              plan.popular 
+                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl' 
+                : 'bg-gray-100 text-gray-800 hover:bg-gray-200 hover:text-gray-900'
+            }`}>
+              {plan.popular ? 'Start Free Trial' : 'Choose Plan'}
+            </button>
           </div>
         ))}
       </div>
-      
+
       {/* FAQ Section */}
-      <div className="mt-20">
-        <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
-          Frequently Asked Questions
-        </h2>
-        <div className="grid md:grid-cols-2 gap-8">
+      <div className="pt-8 pb-16">
+        <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-12 text-center">Frequently Asked Questions</h2>
+        <Accordion>
           {faqs.map((faq, index) => (
-            <div key={index} className="border-b border-gray-200 pb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{faq.question}</h3>
-              <p className="text-gray-600">{faq.answer}</p>
-            </div>
+            <AccordionItem key={index} title={faq.question}>
+              <p>{faq.answer}</p>
+            </AccordionItem>
           ))}
-        </div>
+        </Accordion>
       </div>
     </section>
   );
