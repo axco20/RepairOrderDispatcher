@@ -6,25 +6,15 @@ const About: FC = () => {
   // Leadership team data
   const leadershipTeam = [
     {
-      name: "Alexandra Chen",
-      role: "Chief Executive Officer",
+      name: "Alexander Corea",
+      role: "Co-Developer",
       image: "/api/placeholder/300/300",
     },
     {
-      name: "Marcus Johnson",
-      role: "Chief Technology Officer",
+      name: "Lucas Sotomayor",
+      role: "Co-Developer",
       image: "/api/placeholder/300/300",
     },
-    {
-      name: "Sophia Rodriguez",
-      role: "Chief Product Officer",
-      image: "/api/placeholder/300/300",
-    },
-    {
-      name: "David Kim",
-      role: "VP of Customer Success",
-      image: "/api/placeholder/300/300",
-    }
   ];
 
   // Core values data
@@ -59,15 +49,7 @@ const About: FC = () => {
       <div className="grid md:grid-cols-2 gap-12 items-center mb-20">
         <div>
           <h2 className="text-3xl font-bold text-gray-900 mb-6">Our Story</h2>
-          <p className="text-gray-600 mb-4">
-            Founded in 2017 by a team of automotive industry veterans and software engineers, AutoDispatch was born from a simple observation: auto repair shops were using outdated systems that weren&apos;t designed for their specific needs.
-          </p>
-          <p className="text-gray-600 mb-4">
-            After spending months speaking with shop owners, service managers, and technicians, we built a solution that addresses the real challenges faced by modern repair businesses.
-          </p>
-          <p className="text-gray-600">
-            Today, AutoDispatch is trusted by thousands of repair shops across North America, from single-location businesses to multi-site service centers. Our platform processes over 1 million repair orders every month.
-          </p>
+          
         </div>
         <div className="relative w-full h-[400px]">
           <Image

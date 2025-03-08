@@ -1,7 +1,7 @@
 import React, { FC } from 'react';
 import Image from 'next/image';
 import { ArrowRight, ChevronDown } from 'lucide-react';
-import { Feature, Testimonial } from '../types';
+import { Feature } from '../types';
 
 interface HomeProps {
   features: Feature[];
@@ -9,6 +9,7 @@ interface HomeProps {
 }
 
 const Home: FC<HomeProps> = ({ features, handleNavigation }) => {
+  {/* 
   // Testimonials data
   const testimonials: Testimonial[] = [
     {
@@ -26,7 +27,7 @@ const Home: FC<HomeProps> = ({ features, handleNavigation }) => {
       author: "Michael Brown",
       role: "Director, Brown's Auto Group"
     }
-  ];
+  ];*/}
 
   return (
     <>
@@ -92,7 +93,7 @@ const Home: FC<HomeProps> = ({ features, handleNavigation }) => {
         </div>
       </section>
 
-      {/* Testimonials */}
+      {/* Testimonials 
       <section className="bg-gray-50 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
@@ -117,7 +118,8 @@ const Home: FC<HomeProps> = ({ features, handleNavigation }) => {
             ))}
           </div>
         </div>
-      </section>
+      </section> 
+      */}
 
       {/* CTA Section */}
       <section className="bg-blue-600 py-20">

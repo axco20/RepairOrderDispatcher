@@ -59,36 +59,37 @@ const LandingPage: FC<LandingPageProps> = ({ onLogin }) => {
   
   // Pricing plans
   const pricingPlans = [
-    {
-      name: "Starter",
-      price: "$49",
-      description: "Perfect for small repair shops just getting started",
-      features: [
-        "Up to 5 technician accounts",
-        "Basic work order management",
-        "Customer database",
-        "Email notifications",
-        "8/5 email support"
-      ]
-    },
-    {
-      name: "Professional",
-      price: "$99",
-      description: "Ideal for growing auto repair businesses",
-      features: [
-        "Up to 15 technician accounts",
-        "Advanced work order management",
-        "Customer database with history",
-        "Email & SMS notifications",
-        "Priority queue management",
-        "Basic analytics dashboard",
-        "24/7 email & chat support"
-      ],
-      popular: true
-    },
+    
+    //{
+      //name: "Starter",
+      //price: "$49",
+      //description: "Perfect for small repair shops just getting started",
+      //features: [
+        //"Up to 5 technician accounts",
+        //"Basic work order management",
+        //"Customer database",
+        //"Email notifications",
+        //"8/5 email support"
+      //]
+    //},
+    //{
+      //name: "Professional",
+      //price: "$99",
+      //description: "Ideal for growing auto repair businesses",
+      //features: [
+        //"Up to 15 technician accounts",
+        //"Advanced work order management",
+        //"Customer database with history",
+        //"Email & SMS notifications",
+        //"Priority queue management",
+       // "Basic analytics dashboard",
+       // "24/7 email & chat support"
+      //],
+      //popular: true
+   // },
     {
       name: "Enterprise",
-      price: "$249",
+      price: "FREE TESTING TRIAL",
       description: "For large service centers with multiple locations",
       features: [
         "Unlimited technician accounts",

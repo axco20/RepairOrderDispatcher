@@ -1,5 +1,5 @@
 import React, { FC } from 'react';
-import { Mail, Phone, MessageSquare, FileText, ArrowRight } from 'lucide-react';
+import { Mail, FileText, ArrowRight } from 'lucide-react';
 
 const Contact: FC = () => {
   return (
@@ -86,37 +86,11 @@ const Contact: FC = () => {
                 <h3 className="text-lg font-medium text-gray-900">Email Us</h3>
                 <p className="mt-1 text-gray-600">Our friendly team is here to help.</p>
                 <a href="mailto:hello@autodispatch.com" className="mt-2 inline-block text-blue-600 hover:text-blue-800">
-                  hello@autodispatch.com
+                  help@AutoSynctify.com
                 </a>
               </div>
             </div>
-            
-            <div className="flex items-start">
-              <div className="flex-shrink-0 bg-blue-100 p-3 rounded-full">
-                <Phone className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">Call Us</h3>
-                <p className="mt-1 text-gray-600">Mon-Fri from 8am to 6pm EST.</p>
-                <a href="tel:+1-555-123-4567" className="mt-2 inline-block text-blue-600 hover:text-blue-800">
-                  +1 (555) 123-4567
-                </a>
-              </div>
-            </div>
-            
-            <div className="flex items-start">
-              <div className="flex-shrink-0 bg-blue-100 p-3 rounded-full">
-                <MessageSquare className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">Live Chat</h3>
-                <p className="mt-1 text-gray-600">Our friendly team is here to help.</p>
-                <button className="mt-2 inline-flex items-center text-blue-600 hover:text-blue-800">
-                  Start chat now
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </button>
-              </div>
-            </div>
+          
             
             <div className="flex items-start">
               <div className="flex-shrink-0 bg-blue-100 p-3 rounded-full">
@@ -133,28 +107,7 @@ const Contact: FC = () => {
             </div>
           </div>
           
-          {/* Office locations */}
-          <div className="mt-12">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Our Offices</h2>
-            <div className="grid sm:grid-cols-2 gap-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-medium text-gray-900">San Francisco</h3>
-                <p className="text-gray-600 mt-1">
-                  123 Market Street<br />
-                  Suite 400<br />
-                  San Francisco, CA 94105
-                </p>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-medium text-gray-900">Toronto</h3>
-                <p className="text-gray-600 mt-1">
-                  456 Queen Street West<br />
-                  Suite 200<br />
-                  Toronto, ON M5V 2B3
-                </p>
-              </div>
-            </div>
-          </div>
+          
         </div>
       </div>
     </section>

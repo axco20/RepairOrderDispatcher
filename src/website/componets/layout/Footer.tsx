@@ -79,7 +79,7 @@ const Footer: FC<FooterProps> = ({ footerLinks }) => {
         <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row items-center justify-between">
           <div className="flex items-center mb-4 md:mb-0">
             <Wrench className="h-8 w-8 text-white mr-2" />
-            <span className="text-xl font-bold text-white">AutoDispatch</span>
+            <span className="text-xl font-bold text-white">AutoSyncify</span>
           </div>
           <div className="flex items-center space-x-6 mb-4 md:mb-0">
             {/* Social media icons */}
@@ -105,7 +105,7 @@ const Footer: FC<FooterProps> = ({ footerLinks }) => {
             </a>
           </div>
           <div className="text-sm">
-            © {new Date().getFullYear()} AutoDispatch. All rights reserved.
+            © {new Date().getFullYear()} AutoSyncify. All rights reserved.
           </div>
         </div>
       </div>
