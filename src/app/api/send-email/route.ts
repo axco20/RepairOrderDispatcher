@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    const registrationLink = `http://10.5.0.2:3000/AdminEmail`;
+    const registrationLink = `http://www.autosynctify.com/AdminEmail`;
 
     const { data, error } = await resend.emails.send({
       from: "Registration Confirmation <support@autosynctify.com>", 

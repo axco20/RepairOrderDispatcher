@@ -50,13 +50,13 @@ const Home: FC<HomeProps> = ({ features, handleNavigation }) => {
               </button>
             </div>
           </div>
-          <div className="relative h-[400px]">
+          <div className="relative h-full w-full">
             <Image
-              src="/api/placeholder/600/400"
-              alt="Automotive Workshop"
+              src="/images/screenshotofdash.png"
+              alt="Dashboard Screenshot"
               fill
-              sizes="(max-width: 768px) 100vw, 600px"
-              className="rounded-lg shadow-2xl object-cover"
+              sizes="(max-width: 768px) 100vw, 300px"
+              
               priority // This is important for the hero image (LCP)
             />
           </div>

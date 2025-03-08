@@ -23,7 +23,7 @@ const Header: FC<HeaderProps> = ({
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <Wrench className="h-8 w-8 text-blue-600" />
-          <span className="text-xl font-bold text-gray-900">AutoDispatch</span>
+          <span className="text-xl font-bold text-gray-900">AutoSynctify</span>
         </div>
 
         <NavLinks activeTab={activeTab} handleNavigation={handleNavigation} />
