@@ -10,10 +10,11 @@ import {
   Tag,
   Clock,
   Zap,
-  GripVertical
+  GripVertical,
+  MoveVertical
 } from 'lucide-react';
-import { RepairOrder } from '@/types';
-
+import { RepairOrder } from '@/types/repairOrder';
+import { toast } from 'react-toastify';
 
 // Define the interface for a priority config item
 interface PriorityConfigItem {
@@ -37,25 +38,36 @@ const PRIORITY_CONFIG: PriorityConfigType = {
   3: { label: 'LOANER', color: 'bg-green-100 text-green-800', icon: <Clock className="h-3 w-3 text-green-800" /> }
 };
 
-
 const QueueManagement: React.FC = () => {
   const { 
+    repairOrders,
     pendingOrders, 
     updatePriority, 
     updateOrderPosition,
+    updateRepairOrder,
     inProgressOrders, 
     completedOrders,
+    refreshOrders
   } = useRepairOrders();
   
   const [draggedOrder, setDraggedOrder] = useState<string | null>(null);
   const [dragOverOrder, setDragOverOrder] = useState<string | null>(null);
-  const [ordersByPriority, setOrdersByPriority] = useState<Record<number, RepairOrder[]>>({});
+  const [ordersByPriority, setOrdersByPriority] = useState<Record<number, RepairOrder[]>>({
+    1: [], 2: [], 3: []
+  });
   const [expandedPriorities, setExpandedPriorities] = useState<Record<number, boolean>>({
     1: true, 2: true, 3: true
   });
   
+  // Load data on component mount
+  useEffect(() => {
+    refreshOrders();
+  }, [refreshOrders]);
+  
   // Group orders by priority
   useEffect(() => {
+    if (!pendingOrders) return; // Guard against undefined
+    
     const grouped: Record<number, RepairOrder[]> = {};
     
     // Initialize empty arrays for all priority levels
@@ -65,21 +77,18 @@ const QueueManagement: React.FC = () => {
     
     // Group orders by priority
     pendingOrders.forEach(order => {
-      if (grouped[order.priority]) {
-        grouped[order.priority].push(order);
+      const priority = order.priority || 1;
+      if (grouped[priority]) {
+        grouped[priority].push(order);
       } else {
-        grouped[order.priority] = [order];
+        grouped[priority] = [order];
       }
     });
     
-    // Sort orders within each priority group by position or creation date
+    // Sort orders by creation date
     Object.keys(grouped).forEach(priority => {
       grouped[Number(priority)].sort((a, b) => {
-        // Sort by position if available
-        if (a.position !== undefined && b.position !== undefined) {
-          return a.position - b.position;
-        }
-        // Fall back to date sorting
+        // Sort by creation date
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       });
     });
@@ -125,44 +134,158 @@ const QueueManagement: React.FC = () => {
   };
   
   // Handle drop event
-  const handleDrop = (e: React.DragEvent, targetOrderId: string, targetPriority: number) => {
+  const handleDrop = async (e: React.DragEvent, targetOrderId: string, targetPriority: number) => {
     e.preventDefault();
     const sourceOrderId = e.dataTransfer.getData('text/plain');
     
     if (sourceOrderId === targetOrderId) return;
     
-    // Find the source order
-    const sourceOrder = pendingOrders.find(order => order.id === sourceOrderId);
-    if (!sourceOrder) return;
-    
-    // Find the target order
-    const targetOrder = pendingOrders.find(order => order.id === targetOrderId);
-    if (!targetOrder) return;
-    
-    // If dropping to a different priority group, change the priority
-    if (sourceOrder.priority !== targetPriority) {
-      updatePriority(sourceOrderId, targetPriority);
-      return;
+    try {
+      // Find the source order
+      const sourceOrder = pendingOrders.find(order => order.id === sourceOrderId);
+      if (!sourceOrder) {
+        console.error("Source order not found", sourceOrderId);
+        return;
+      }
+      
+      // Find the target order
+      const targetOrder = pendingOrders.find(order => order.id === targetOrderId);
+      if (!targetOrder) {
+        console.error("Target order not found", targetOrderId);
+        return;
+      }
+      
+      // If dropping to a different priority group, change the priority
+      if (sourceOrder.priority !== targetPriority) {
+        console.log(`Moving order ${sourceOrderId} to priority ${targetPriority}`);
+        const success = await updatePriority(sourceOrderId, targetPriority);
+        if (success) {
+          toast.success(`Moved order to ${PRIORITY_CONFIG[targetPriority].label} priority`);
+        } else {
+          toast.error("Failed to update priority");
+        }
+        return;
+      }
+      
+      // If dropping within the same priority group, reorder
+      if (sourceOrder.priority === targetOrder.priority) {
+        console.log(`Reordering: moving ${sourceOrderId} before/after ${targetOrderId}`);
+        const success = await updateOrderPosition(sourceOrderId, targetOrderId);
+        if (success) {
+          toast.success("Order position updated");
+          // Refresh to get the updated order
+          await refreshOrders();
+        } else {
+          toast.error("Failed to update order position");
+        }
+      }
+    } catch (error) {
+      console.error("Error handling drop:", error);
+      toast.error("Error updating order");
     }
-    
-    // If dropping within the same priority group, reorder
-    if (sourceOrder.priority === targetOrder.priority) {
-      updateOrderPosition(sourceOrderId, targetOrderId);
+  };
+  
+  // Move order up in the list - will appear earlier in the queue
+  const moveOrderUp = async (orderId: string, priorityLevel: number) => {
+    try {
+      const orders = ordersByPriority[priorityLevel];
+      const index = orders.findIndex(order => order.id === orderId);
+      
+      if (index <= 0) return; // Already at the top
+      
+      const targetOrderId = orders[index - 1].id;
+      console.log(`Moving order ${orderId} up before ${targetOrderId}`);
+      
+      const success = await updateOrderPosition(orderId, targetOrderId);
+      
+      if (success) {
+        toast.success("Moved order up");
+        await refreshOrders(); // Refresh to get updated order
+      } else {
+        toast.error("Failed to move order");
+      }
+    } catch (error) {
+      console.error("Error moving order up:", error);
+      toast.error("Error updating order");
+    }
+  };
+  
+  // Move order down in the list - will appear later in the queue
+  const moveOrderDown = async (orderId: string, priorityLevel: number) => {
+    try {
+      const orders = ordersByPriority[priorityLevel];
+      const index = orders.findIndex(order => order.id === orderId);
+      
+      if (index === -1 || index >= orders.length - 1) return; // Already at the bottom
+      
+      const targetOrderId = orders[index + 1].id;
+      console.log(`Moving order ${orderId} down after ${targetOrderId}`);
+      
+      // Get the order after the target, if it exists
+      const afterTargetId = index + 2 < orders.length ? orders[index + 2].id : null;
+      
+      if (afterTargetId) {
+        // If there's an order after the target, move to before that one
+        const success = await updateOrderPosition(orderId, afterTargetId);
+        if (success) {
+          toast.success("Moved order down");
+          await refreshOrders();
+        } else {
+          toast.error("Failed to move order");
+        }
+      } else {
+        // If it's the last order, we need to move it to be created at a later time
+        const currentOrder = orders[index];
+        const targetOrder = orders[index + 1];
+        
+        // Create a timestamp 1 minute after the last item
+        const targetTime = new Date(targetOrder.createdAt).getTime();
+        const newTime = new Date(targetTime + 60000).toISOString();
+        
+        const { error } = await supabase
+          .from('repair_orders')
+          .update({ 
+            created_at: newTime,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', currentOrder.id);
+        
+        if (error) {
+          console.error(`Failed to update created_at for order ${currentOrder.id}:`, error);
+          toast.error("Failed to move order");
+        } else {
+          toast.success("Moved order down");
+          await refreshOrders();
+        }
+      }
+    } catch (error) {
+      console.error("Error moving order down:", error);
+      toast.error("Error updating order");
     }
   };
   
   // Handle dropping onto a priority section
-  const handleDropOnSection = (e: React.DragEvent, targetPriority: number) => {
+  const handleDropOnSection = async (e: React.DragEvent, targetPriority: number) => {
     e.preventDefault();
     const sourceOrderId = e.dataTransfer.getData('text/plain');
     
-    // Find the source order
-    const sourceOrder = pendingOrders.find(order => order.id === sourceOrderId);
-    if (!sourceOrder) return;
-    
-    // If dropping to a different priority group, change the priority
-    if (sourceOrder.priority !== targetPriority) {
-      updatePriority(sourceOrderId, targetPriority);
+    try {
+      // Find the source order
+      const sourceOrder = pendingOrders.find(order => order.id === sourceOrderId);
+      if (!sourceOrder) return;
+      
+      // If dropping to a different priority group, change the priority
+      if (sourceOrder.priority !== targetPriority) {
+        const success = await updatePriority(sourceOrderId, targetPriority);
+        if (success) {
+          toast.success(`Moved order to ${PRIORITY_CONFIG[targetPriority].label} priority`);
+        } else {
+          toast.error("Failed to update priority");
+        }
+      }
+    } catch (error) {
+      console.error("Error handling drop on section:", error);
+      toast.error("Error updating order");
     }
   };
   
@@ -179,15 +302,15 @@ const QueueManagement: React.FC = () => {
           <div className="grid grid-cols-3 gap-4 mt-4">
             <div className="text-center p-3 bg-gray-50 rounded">
               <p className="text-sm text-gray-700">Pending</p>
-              <p className="text-xl font-bold text-indigo-600">{pendingOrders.length}</p>
+              <p className="text-xl font-bold text-indigo-600">{pendingOrders?.length || 0}</p>
             </div>
             <div className="text-center p-3 bg-gray-50 rounded">
               <p className="text-sm text-gray-700">In Progress</p>
-              <p className="text-xl font-bold text-yellow-500">{inProgressOrders.length}</p>
+              <p className="text-xl font-bold text-yellow-500">{inProgressOrders?.length || 0}</p>
             </div>
             <div className="text-center p-3 bg-gray-50 rounded">
               <p className="text-sm text-gray-700">Completed</p>
-              <p className="text-xl font-bold text-green-600">{completedOrders.length}</p>
+              <p className="text-xl font-bold text-green-600">{completedOrders?.length || 0}</p>
             </div>
           </div>
         </div>
@@ -257,7 +380,7 @@ const QueueManagement: React.FC = () => {
                               : 'border-gray-200 bg-white'
                           } ${
                             draggedOrder === order.id ? 'opacity-50' : ''
-                          } transition-all duration-200 cursor-move`}
+                          } transition-all duration-200`}
                           draggable
                           onDragStart={(e) => handleDragStart(e, order.id)}
                           onDragEnd={handleDragEnd}
@@ -267,16 +390,35 @@ const QueueManagement: React.FC = () => {
                           data-order-index={index}
                         >
                           <div className="flex items-center">
+                            <div className="flex flex-col mr-2 text-gray-400">
+                              {index > 0 && (
+                                <button 
+                                  onClick={() => moveOrderUp(order.id, priorityNum)}
+                                  className="p-1 hover:bg-gray-100 rounded"
+                                >
+                                  <ArrowUp className="h-4 w-4" />
+                                </button>
+                              )}
+                              {index < orders.length - 1 && (
+                                <button 
+                                  onClick={() => moveOrderDown(order.id, priorityNum)}
+                                  className="p-1 hover:bg-gray-100 rounded"
+                                >
+                                  <ArrowDown className="h-4 w-4" />
+                                </button>
+                              )}
+                              {orders.length <= 1 && (
+                                <MoveVertical className="h-4 w-4 opacity-25" />
+                              )}
+                            </div>
                             <GripVertical className="h-5 w-5 text-gray-400 cursor-move mr-2" />
                             <div className="flex-1">
                               <div className="font-medium text-gray-900">
                                 {order.description}
                               </div>
                               <div className="text-xs text-gray-500">
-                                ID: {order.description}
-                                {order.position !== undefined && (
-                                  <span className="ml-2">Pos: {order.position}</span>
-                                )}
+                                ID: {order.id?.substring(0, 8) || "unknown"}
+                                <span className="ml-2">Created: {new Date(order.createdAt).toLocaleTimeString()}</span>
                               </div>
                             </div>
                             <div className="flex space-x-2 items-center">

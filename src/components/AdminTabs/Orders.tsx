@@ -84,7 +84,7 @@ const Orders: React.FC = () => {
 
   const handleStatusChange = async (id: string, newStatus: "pending" | "in_progress" | "completed") => {
     try {
-      let updates: Partial<any> = { status: newStatus };
+      const updates: Partial<any> = { status: newStatus };
       
       // Add timestamps for completed orders
       if (newStatus === "completed") {
