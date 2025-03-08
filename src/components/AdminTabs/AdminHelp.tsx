@@ -1,5 +1,5 @@
 import React, { useState, ReactNode, isValidElement } from 'react';
-import { HelpCircle, ChevronDown, Mail, Phone, Search } from 'lucide-react';
+import { HelpCircle, ChevronDown, Search } from 'lucide-react';
 
 // Define interfaces for our help section structure
 interface HelpSection {
@@ -304,33 +304,6 @@ const AdminHelp: React.FC = () => {
             )}
           </div>
         ))}
-      </div>
-
-      {/* Contact Support */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Need Additional Help?</h2>
-        <p className="text-gray-600 mb-6">
-          Our support team is available Monday through Friday, 8:00 AM - 6:00 PM Eastern Time.
-          Contact us through one of the methods below:
-        </p>
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="flex items-start">
-            <Mail className="h-5 w-5 text-indigo-600 mt-1 mr-3" />
-            <div>
-              <h3 className="text-sm font-semibold text-gray-800">Email Support</h3>
-              <p className="text-gray-600">support@repairordersystem.com</p>
-              <p className="text-xs text-gray-500 mt-1">Response within 24 hours</p>
-            </div>
-          </div>
-          <div className="flex items-start">
-            <Phone className="h-5 w-5 text-indigo-600 mt-1 mr-3" />
-            <div>
-              <h3 className="text-sm font-semibold text-gray-800">Phone Support</h3>
-              <p className="text-gray-600">1-800-555-HELP (4357)</p>
-              <p className="text-xs text-gray-500 mt-1">Available during business hours</p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

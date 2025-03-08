@@ -12,7 +12,7 @@ import {
   Zap,
   GripVertical
 } from 'lucide-react';
-import { RepairOrder } from '@/schemas';
+import { RepairOrder } from '@/types';
 
 
 // Define the interface for a priority config item
