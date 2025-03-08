@@ -298,51 +298,46 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
   // CRITICAL FUNCTION: assignRepairOrder - directly updates the assigned_to field
   const assignRepairOrder = async (repairOrderId: string, technicianId: string): Promise<boolean> => {
     try {
-      console.log(`DIRECT UPDATE: Assigning order ${repairOrderId} to technician ${technicianId}`);
-      
-      const now = new Date().toISOString();
-      
-      // Direct SQL update to ensure the assigned_to field is set correctly
+      console.log(`🔄 Attempting to assign order ${repairOrderId} to technician ${technicianId}`);
+  
+      // ✅ Only update the `assigned_to` column
       const { data, error } = await supabase
-        .from('repair_orders')
-        .update({
-          status: 'in_progress',
-          assigned_to: technicianId,  // This directly sets the technician ID
-          assigned_at: now,
-          updated_at: now
-        })
-        .eq('id', repairOrderId);
-      
+        .from("repair_orders")
+        .update({ assigned_to: technicianId, status: "in_progress" }) // ✅ Only updating `assigned_to`
+        .eq("id", repairOrderId)
+        .select();
+  
       if (error) {
-        console.error("ERROR updating repair order:", error);
+        console.error("❌ Error updating assigned_to field:", error);
         return false;
       }
-      
-      console.log("Database update result:", data);
-      
-      // Double-check that the update worked by fetching the record again
-      const { data: checkData, error: checkError } = await supabase
-        .from('repair_orders')
-        .select('*')
-        .eq('id', repairOrderId)
+  
+      console.log("✅ Successfully updated assigned_to:", data);
+  
+      // ✅ Fetch the updated row for verification
+      const { data: updatedOrder, error: verifyError } = await supabase
+        .from("repair_orders")
+        .select("id, assigned_to") // ✅ Only fetching relevant fields
+        .eq("id", repairOrderId)
         .single();
-        
-      if (checkError) {
-        console.error("Error checking update:", checkError);
+  
+      if (verifyError) {
+        console.error("❌ Error verifying update:", verifyError);
       } else {
-        console.log("VERIFICATION - Updated record:", checkData);
-        console.log("assigned_to now set to:", checkData.assigned_to);
+        console.log("🔍 Verification successful:", updatedOrder);
       }
-      
-      // Force a refresh of the orders list
-      await refreshOrders();
-      
+  
+      await refreshOrders(); // ✅ Refresh UI
       return true;
     } catch (err) {
-      console.error('Exception in assignRepairOrder:', err);
+      console.error("❌ Exception in assignRepairOrder:", err);
       return false;
     }
   };
+  
+  
+  
+  
 
   // Complete a repair order
   const completeRepairOrder = async (repairOrderId: string): Promise<boolean> => {
@@ -418,22 +413,21 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
   const getRepairOrdersByTechnician = async (technicianId: string): Promise<RepairOrder[]> => {
     try {
       const { data, error } = await supabase
-        .from('repair_orders')
-        .select('*')
-        .eq('assigned_to', technicianId);  // snake_case
-      
+        .from("repair_orders")
+        .select("*")
+        .eq("assigned_to", technicianId); // Ensure it's filtering correctly
+  
       if (error) {
         throw new Error(error.message);
       }
-      
-      // Convert snake_case from DB to camelCase for our interface
+  
       return data ? data.map(toCamelCase) : [];
     } catch (err) {
       console.error(`Error fetching repair orders for technician ${technicianId}:`, err);
-      setError(`Failed to fetch repair orders for technician ${technicianId}`);
       return [];
     }
   };
+  
 
   // Update priority - for QueueManagement
   const updatePriority = async (orderId: string, newPriority: number): Promise<boolean> => {
@@ -593,48 +587,53 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
   // Get the next repair order for a technician
   const getNextRepairOrder = async (technicianId: string): Promise<boolean> => {
     try {
-      console.log("Simplified getNextRepairOrder called with technicianId:", technicianId);
-      
-      // Check if technician can get a new order
+      console.log(`🔍 Checking for next repair order for technician: ${technicianId}`);
+  
+      // Check if technician can receive a new order
       if (!canRequestNewOrder(technicianId)) {
-        console.log(`Technician ${technicianId} cannot request a new order at this time`);
+        console.warn(`⚠️ Technician ${technicianId} cannot request a new order (max orders or no pending orders).`);
         return false;
       }
-      
-      // Get the next pending order (oldest first)
-      const pendingOrdersArray = [...pendingOrders].sort((a, b) => 
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-      
-      if (pendingOrdersArray.length === 0) {
-        console.log('No pending orders available');
+  
+      // Fetch the next pending order
+      const { data: pendingOrders, error } = await supabase
+        .from("repair_orders")
+        .select("*")
+        .eq("status", "pending")
+        .order("created_at", { ascending: true })
+        .limit(1);
+  
+      if (error) {
+        console.error("❌ Error fetching pending orders:", error);
         return false;
       }
-      
-      console.log("Found pending order to assign:", pendingOrdersArray[0].id);
-      const nextOrder = pendingOrdersArray[0];
-      
-      // Assign this order to the technician
-      console.log(`Assigning order ${nextOrder.id} to technician ${technicianId}`);
+  
+      if (!pendingOrders || pendingOrders.length === 0) {
+        console.warn("⚠️ No pending repair orders found.");
+        return false;
+      }
+  
+      const nextOrder = pendingOrders[0];
+      console.log("✅ Found order to assign:", nextOrder.id);
+  
+      // Attempt to assign the order to the technician
       const result = await assignRepairOrder(nextOrder.id, technicianId);
-      
+  
       if (result) {
-        console.log("Successfully assigned order");
-        
-        // Force a refresh of orders
-        await refreshOrders();
-        
+        console.log("🎉 Successfully assigned order!");
+        await refreshOrders(); // Refresh UI
         return true;
       } else {
-        console.log("Failed to assign order");
+        console.error("❌ Failed to assign order!");
         return false;
       }
     } catch (err) {
-      console.error('Error assigning next repair order:', err);
-      setError('Failed to assign next repair order');
+      console.error("❌ Error in getNextRepairOrder:", err);
       return false;
     }
   };
+  
+  
 
   // Context value
   const value = {

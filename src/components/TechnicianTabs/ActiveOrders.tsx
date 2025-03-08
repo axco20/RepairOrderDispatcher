@@ -32,8 +32,12 @@ export default function ActiveOrders() {
   if (!currentUser) return <p>Loading...</p>;
 
   const activeOrders = technicianOrders(currentUser.id).filter(
-    (order) => order.status === "in_progress"
+    (order) => order.status === "in_progress" && order.assignedTo === currentUser.id
   );
+  console.log("🛠 Filtered activeOrders:", activeOrders);
+  
+  
+  
 
   const handleCompleteOrder = async (orderId: string) => {
     try {
