@@ -1,6 +1,6 @@
 "use client";
-
-import React, { useState } from "react";
+//technicandashboard.tsx
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import TechSidebar from "@/components/TechSideBar";
@@ -8,6 +8,7 @@ import Home from "@/components/TechnicianTabs/Home";
 import ActiveOrders from "@/components/TechnicianTabs/ActiveOrders";
 import CompletedOrders from "@/components/TechnicianTabs/CompletedOrders";
 import Help from "@/components/TechnicianTabs/Help";
+import { toast } from "react-toastify";
 
 export default function TechnicianDashboard() {
   const { currentUser, logout } = useAuth();
@@ -16,10 +17,19 @@ export default function TechnicianDashboard() {
     getNextRepairOrder, 
     technicianActiveOrderCount,
     canRequestNewOrder,
-    pendingOrders 
+    pendingOrders,
+    refreshOrders
   } = useRepairOrders();
   
   const [activePage, setActivePage] = useState<"Home" | "ActiveOrders" | "CompletedOrders" | "Help">("Home");
+  const [isAssigningOrder, setIsAssigningOrder] = useState(false);
+
+  // FIX: Only run once on mount instead of on every render
+  useEffect(() => {
+    // One-time refresh when component mounts
+    refreshOrders();
+    // IMPORTANT: Remove refreshOrders from the dependency array
+  }, []);
 
   if (!currentUser) return <p>Loading...</p>;
 
@@ -27,6 +37,43 @@ export default function TechnicianDashboard() {
   const activeOrders = myOrders.filter(order => order.status === "in_progress");
   const activeOrderCount = technicianActiveOrderCount(currentUser.id);
   const canGetNewOrder = canRequestNewOrder(currentUser.id);
+
+  // Create a wrapper function that passes the current user ID to getNextRepairOrder
+  const handleGetNextRepairOrder = async () => {
+    if (isAssigningOrder) return;
+    
+    try {
+      setIsAssigningOrder(true);
+      console.log("Getting next repair order for technician:", currentUser.id);
+      
+      const result = await getNextRepairOrder(currentUser.id);
+      
+      if (result) {
+        toast.success("New repair order assigned!");
+        console.log("Successfully assigned new repair order");
+        
+        // Force a refresh of data
+        await refreshOrders();
+        
+        // Auto-navigate to active orders after getting a new one
+        setActivePage("ActiveOrders");
+      } else {
+        if (pendingOrders.length === 0) {
+          toast.info("No pending orders available in the queue");
+        } else if (activeOrderCount >= 5) {
+          toast.info("You already have the maximum number of active orders");
+        } else {
+          toast.error("Failed to assign new repair order");
+        }
+        console.log("Failed to assign new repair order");
+      }
+    } catch (error) {
+      console.error("Error getting next order:", error);
+      toast.error("An error occurred while getting the next order");
+    } finally {
+      setIsAssigningOrder(false);
+    }
+  };
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -46,7 +93,8 @@ export default function TechnicianDashboard() {
               activeOrderCount={activeOrderCount}
               canGetNewOrder={canGetNewOrder}
               pendingOrdersCount={pendingOrders.length}
-              getNextRepairOrder={getNextRepairOrder}
+              getNextRepairOrder={handleGetNextRepairOrder}
+              isLoading={isAssigningOrder}
             />
           )}
           {activePage === "ActiveOrders" && <ActiveOrders />}

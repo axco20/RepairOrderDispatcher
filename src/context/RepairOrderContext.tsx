@@ -1,31 +1,19 @@
 "use client";
 
-// context/RepairOrderContext.tsx - enhanced with queue functionality
+// context/RepairOrderContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
-import { supabase } from '@/lib/supabaseClient'; // Use your existing Supabase client
+import { supabase } from '@/lib/supabaseClient';
 import { RepairOrder } from '@/types/repairOrder';
-import { RepairOrderAssignment } from '@/types/repairAssignment';
 
-// Define the context type with queue management properties
-type RepairOrderContextType = {
-  repairOrders: RepairOrder[];
-  pendingOrders: RepairOrder[]; // For QueueManagement
-  inProgressOrders: RepairOrder[]; // For QueueManagement
-  completedOrders: RepairOrder[]; // For QueueManagement
-  loading: boolean;
-  error: string | null;
-  refreshOrders: () => Promise<void>;
-  getRepairOrder: (id: string) => Promise<RepairOrder | null>;
-  createRepairOrder: (data: Omit<RepairOrder, 'id' | 'createdAt'>) => Promise<RepairOrder | null>;
-  updateRepairOrder: (id: string, updates: Partial<RepairOrder>) => Promise<RepairOrder | null>;
-  deleteRepairOrder: (id: string) => Promise<boolean>;
-  assignRepairOrder: (repairOrderId: string, technicianId: string) => Promise<RepairOrderAssignment | null>;
-  completeRepairOrder: (repairOrderId: string) => Promise<boolean>;
-  getRepairOrdersByStatus: (status: RepairOrder['status']) => Promise<RepairOrder[]>;
-  getRepairOrdersByTechnician: (technicianId: string) => Promise<RepairOrder[]>;
-  updatePriority: (orderId: string, newPriority: number) => Promise<boolean>; // For QueueManagement
-  updateOrderPosition: (sourceOrderId: string, targetOrderId: string) => Promise<boolean>; // For QueueManagement
-};
+// Define a simple RepairOrderAssignment type (even if you don't have the actual file)
+interface RepairOrderAssignment {
+  id?: string;
+  repairOrderId: string;
+  technicianId: string;
+  assignedAt: string;
+  status: "in_progress" | "completed";
+  completedAt?: string;
+}
 
 // Helper function to convert camelCase to snake_case
 const toSnakeCase = (obj: any): any => {
@@ -57,12 +45,40 @@ const toCamelCase = (obj: any): any => {
   return camelObj;
 };
 
+// Define the context type with queue management properties
+type RepairOrderContextType = {
+  repairOrders: RepairOrder[];
+  pendingOrders: RepairOrder[]; // For QueueManagement
+  inProgressOrders: RepairOrder[]; // For QueueManagement
+  completedOrders: RepairOrder[]; // For QueueManagement
+  assignments: RepairOrderAssignment[]; // For Performance component
+  loading: boolean;
+  error: string | null;
+  refreshOrders: () => Promise<void>;
+  getRepairOrder: (id: string) => Promise<RepairOrder | null>;
+  createRepairOrder: (data: Omit<RepairOrder, 'id' | 'createdAt'>) => Promise<RepairOrder | null>;
+  updateRepairOrder: (id: string, updates: Partial<RepairOrder>) => Promise<RepairOrder | null>;
+  deleteRepairOrder: (id: string) => Promise<boolean>;
+  assignRepairOrder: (repairOrderId: string, technicianId: string) => Promise<RepairOrderAssignment | null>;
+  completeRepairOrder: (repairOrderId: string) => Promise<boolean>;
+  getRepairOrdersByStatus: (status: RepairOrder['status']) => Promise<RepairOrder[]>;
+  getRepairOrdersByTechnician: (technicianId: string) => Promise<RepairOrder[]>;
+  updatePriority: (orderId: string, newPriority: number) => Promise<boolean>; // For QueueManagement
+  updateOrderPosition: (sourceOrderId: string, targetOrderId: string) => Promise<boolean>; // For QueueManagement
+  // Technician dashboard functions
+  technicianOrders: (technicianId: string) => RepairOrder[];
+  getNextRepairOrder: (technicianId: string) => Promise<boolean>;
+  technicianActiveOrderCount: (technicianId: string) => number;
+  canRequestNewOrder: (technicianId: string) => boolean;
+};
+
 // Create the context
 const RepairOrderContext = createContext<RepairOrderContextType | undefined>(undefined);
 
 // Provider component
 export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [repairOrders, setRepairOrders] = useState<RepairOrder[]>([]);
+  const [assignments, setAssignments] = useState<RepairOrderAssignment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,7 +112,17 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
       
       // Convert snake_case from DB to camelCase for our interface
-      const camelCaseData = data ? data.map(toCamelCase) : [];
+      const camelCaseData = data ? data.map(item => {
+        const camelItem = toCamelCase(item);
+        
+        // Ensure technician_id is properly mapped to assignedTo
+        if (item.assigned_to) {
+          camelItem.assignedTo = item.assigned_to;
+        }
+        
+        return camelItem;
+      }) : [];
+      
       setRepairOrders(camelCaseData);
       setError(null);
     } catch (err) {
@@ -107,8 +133,45 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   };
 
+  // Fetch assignments
+  const fetchAssignments = async () => {
+    try {
+      console.log("Fetching repair assignments...");
+      
+      const { data, error } = await supabase
+        .from('repair_assignments')
+        .select('*');
+      
+      if (error) {
+        console.error('Error fetching repair assignments:', {
+          message: error.message,
+          details: error.details,
+          code: error.code,
+          hint: error.hint
+        });
+        return [];
+      }
+      
+      console.log(`Successfully fetched ${data?.length || 0} assignments`);
+      
+      // Convert snake_case from DB to camelCase for our interface
+      const camelCaseData = data ? data.map(toCamelCase) : [];
+      setAssignments(camelCaseData);
+      return camelCaseData;
+    } catch (err) {
+      console.error('Exception in fetchAssignments:', err);
+      return [];
+    }
+  };
+
+  // Load data on initial render
   useEffect(() => {
-    refreshOrders();
+    const loadData = async () => {
+      await refreshOrders();
+      await fetchAssignments();
+    };
+    
+    loadData();
   }, []);
 
   // Get a single repair order
@@ -232,51 +295,52 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   // Assign a repair order to a technician
-  const assignRepairOrder = async (repairOrderId: string, technicianId: string): Promise<RepairOrderAssignment | null> => {
+  // CRITICAL FUNCTION: assignRepairOrder - directly updates the assigned_to field
+  const assignRepairOrder = async (repairOrderId: string, technicianId: string): Promise<boolean> => {
     try {
+      console.log(`DIRECT UPDATE: Assigning order ${repairOrderId} to technician ${technicianId}`);
+      
       const now = new Date().toISOString();
       
-      // First, update the repair order
-      const { error: updateError } = await supabase
+      // Direct SQL update to ensure the assigned_to field is set correctly
+      const { data, error } = await supabase
         .from('repair_orders')
         .update({
           status: 'in_progress',
-          assigned_to: technicianId,   // snake_case
-          assigned_at: now,            // snake_case
+          assigned_to: technicianId,  // This directly sets the technician ID
+          assigned_at: now,
           updated_at: now
         })
         .eq('id', repairOrderId);
       
-      if (updateError) {
-        throw new Error(updateError.message);
+      if (error) {
+        console.error("ERROR updating repair order:", error);
+        return false;
       }
       
-      // Then, create the assignment
-      const newAssignment = {
-        repair_order_id: repairOrderId,   // snake_case
-        technician_id: technicianId,      // snake_case
-        assigned_at: now,                // snake_case
-        status: 'in_progress'
-      };
+      console.log("Database update result:", data);
       
-      const { data: assignment, error: assignError } = await supabase
-        .from('repair_assignments')
-        .insert(newAssignment)
-        .select()
+      // Double-check that the update worked by fetching the record again
+      const { data: checkData, error: checkError } = await supabase
+        .from('repair_orders')
+        .select('*')
+        .eq('id', repairOrderId)
         .single();
-      
-      if (assignError) {
-        throw new Error(assignError.message);
+        
+      if (checkError) {
+        console.error("Error checking update:", checkError);
+      } else {
+        console.log("VERIFICATION - Updated record:", checkData);
+        console.log("assigned_to now set to:", checkData.assigned_to);
       }
       
-      // Refresh orders to get the updated state
+      // Force a refresh of the orders list
       await refreshOrders();
       
-      return assignment ? toCamelCase(assignment) : null;
+      return true;
     } catch (err) {
-      console.error(`Error assigning repair order ${repairOrderId}:`, err);
-      setError(`Failed to assign repair order ${repairOrderId}`);
-      return null;
+      console.error('Exception in assignRepairOrder:', err);
+      return false;
     }
   };
 
@@ -320,6 +384,7 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
       
       await refreshOrders();
+      await fetchAssignments();
       return true;
     } catch (err) {
       console.error(`Error completing repair order ${repairOrderId}:`, err);
@@ -405,32 +470,36 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   };
 
-// Simplified version that doesn't rely on the position column
-const updateOrderPosition = async (sourceOrderId: string, targetOrderId: string): Promise<boolean> => {
-  try {
-    // Find source and target orders in our current state
-    const sourceOrder = repairOrders.find(order => order.id === sourceOrderId);
-    const targetOrder = repairOrders.find(order => order.id === targetOrderId);
-    
-    if (!sourceOrder || !targetOrder) {
-      console.error('Source or target order not found', { sourceOrderId, targetOrderId });
-      throw new Error('Source or target order not found');
-    }
-    
-    // Check if we need to update priority first
-    if (sourceOrder.priority !== targetOrder.priority) {
-      // If moving to a different priority group, simply update the priority
+  // Update order position - for QueueManagement
+  const updateOrderPosition = async (sourceOrderId: string, targetOrderId: string): Promise<boolean> => {
+    try {
+      // Find source and target orders in our current state
+      const sourceOrder = repairOrders.find(order => order.id === sourceOrderId);
+      const targetOrder = repairOrders.find(order => order.id === targetOrderId);
+      
+      if (!sourceOrder || !targetOrder) {
+        console.error('Source or target order not found', { sourceOrderId, targetOrderId });
+        throw new Error('Source or target order not found');
+      }
+      
+      // If same priority (just reordering), we can simply change the createdAt timestamp
+      // to be just before or after the target item
+      const targetTime = new Date(targetOrder.createdAt).getTime();
+      
+      // Place it one millisecond before the target
+      const newTime = new Date(targetTime - 1).toISOString();
+      
       const { error } = await supabase
         .from('repair_orders')
         .update({ 
-          priority: targetOrder.priority,
+          created_at: newTime,
           updated_at: new Date().toISOString()
         })
         .eq('id', sourceOrderId);
       
       if (error) {
-        console.error(`Failed to update priority for order ${sourceOrderId}:`, error);
-        throw new Error(`Failed to update priority for order ${sourceOrderId}: ${error.message}`);
+        console.error(`Failed to update order ${sourceOrderId}:`, error);
+        throw new Error(`Failed to update order ${sourceOrderId}: ${error.message}`);
       }
       
       // Update local state
@@ -439,7 +508,7 @@ const updateOrderPosition = async (sourceOrderId: string, targetOrderId: string)
           if (order.id === sourceOrderId) {
             return {
               ...order,
-              priority: targetOrder.priority
+              createdAt: newTime
             };
           }
           return order;
@@ -447,55 +516,133 @@ const updateOrderPosition = async (sourceOrderId: string, targetOrderId: string)
       });
       
       return true;
+    } catch (err) {
+      console.error('Error updating order positions:', err);
+      setError('Failed to update order positions');
+      return false;
+    }
+  };
+
+  // Get orders assigned to a technician
+  const technicianOrders = (technicianId: string): RepairOrder[] => {
+    console.log(`Finding orders for technician: ${technicianId}`);
+    console.log(`Total orders in state: ${repairOrders.length}`);
+    
+    // Log the first repair order to see its structure
+    if (repairOrders.length > 0) {
+      console.log("First repair order keys:", Object.keys(repairOrders[0]));
+      console.log("First repair order:", repairOrders[0]);
     }
     
-    // If same priority (just reordering), we can simply change the createdAt timestamp
-    // to be just before or after the target item
-    const targetTime = new Date(targetOrder.createdAt).getTime();
-    
-    // Place it one millisecond before the target
-    const newTime = new Date(targetTime - 1).toISOString();
-    
-    const { error } = await supabase
-      .from('repair_orders')
-      .update({ 
-        created_at: newTime,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', sourceOrderId);
-    
-    if (error) {
-      console.error(`Failed to update order ${sourceOrderId}:`, error);
-      throw new Error(`Failed to update order ${sourceOrderId}: ${error.message}`);
-    }
-    
-    // Update local state
-    setRepairOrders(prevOrders => {
-      return prevOrders.map(order => {
-        if (order.id === sourceOrderId) {
-          return {
-            ...order,
-            createdAt: newTime
-          };
-        }
-        return order;
-      });
+    // First look for direct assignments in the orders
+    const directOrders = repairOrders.filter(order => {
+      // Check both camelCase and snake_case property names
+      return (order.assignedTo === technicianId) || 
+             (order.assigned_to === technicianId);
     });
     
-    return true;
-  } catch (err) {
-    console.error('Error updating order positions:', err);
-    setError('Failed to update order positions');
-    return false;
-  }
-};
+    if (directOrders.length > 0) {
+      console.log(`Found ${directOrders.length} directly assigned orders`);
+      return directOrders;
+    }
+    
+    // If no direct assignments found, check repair_assignments table
+    console.log("Checking assignments table...");
+    console.log(`Total assignments: ${assignments.length}`);
+    
+    const assignedOrders = [];
+    
+    // Match orders to assignments
+    for (const order of repairOrders) {
+      // Find matching assignment
+      const matchingAssignment = assignments.find(a => 
+        a.repairOrderId === order.id && 
+        a.technicianId === technicianId &&
+        a.status === "in_progress"
+      );
+      
+      if (matchingAssignment) {
+        console.log(`Found order ${order.id} matched via assignment`);
+        // Add assignedTo property
+        assignedOrders.push({
+          ...order,
+          assignedTo: technicianId
+        });
+      }
+    }
+    
+    console.log(`Found ${assignedOrders.length} orders via assignments table`);
+    return assignedOrders;
+  };
+
+  // Get the number of active orders for a technician
+  const technicianActiveOrderCount = (technicianId: string): number => {
+    return technicianOrders(technicianId).filter(order => 
+      order.status === 'in_progress'
+    ).length;
+  };
+
+  // Check if a technician can request a new order
+  const canRequestNewOrder = (technicianId: string): boolean => {
+    // You can customize this logic based on your requirements
+    const activeOrderCount = technicianActiveOrderCount(technicianId);
+    const maxAllowedOrders = 5; // Example: set a maximum number of concurrent orders
+    return activeOrderCount < maxAllowedOrders && pendingOrders.length > 0;
+  };
+
+  // Get the next repair order for a technician
+  const getNextRepairOrder = async (technicianId: string): Promise<boolean> => {
+    try {
+      console.log("Simplified getNextRepairOrder called with technicianId:", technicianId);
+      
+      // Check if technician can get a new order
+      if (!canRequestNewOrder(technicianId)) {
+        console.log(`Technician ${technicianId} cannot request a new order at this time`);
+        return false;
+      }
+      
+      // Get the next pending order (oldest first)
+      const pendingOrdersArray = [...pendingOrders].sort((a, b) => 
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      
+      if (pendingOrdersArray.length === 0) {
+        console.log('No pending orders available');
+        return false;
+      }
+      
+      console.log("Found pending order to assign:", pendingOrdersArray[0].id);
+      const nextOrder = pendingOrdersArray[0];
+      
+      // Assign this order to the technician
+      console.log(`Assigning order ${nextOrder.id} to technician ${technicianId}`);
+      const result = await assignRepairOrder(nextOrder.id, technicianId);
+      
+      if (result) {
+        console.log("Successfully assigned order");
+        
+        // Force a refresh of orders
+        await refreshOrders();
+        
+        return true;
+      } else {
+        console.log("Failed to assign order");
+        return false;
+      }
+    } catch (err) {
+      console.error('Error assigning next repair order:', err);
+      setError('Failed to assign next repair order');
+      return false;
+    }
+  };
 
   // Context value
   const value = {
     repairOrders,
-    pendingOrders,    // Added for QueueManagement
-    inProgressOrders, // Added for QueueManagement
-    completedOrders,  // Added for QueueManagement
+    pendingOrders,
+    inProgressOrders,
+    completedOrders,
+    assignments,
     loading,
     error,
     refreshOrders,
@@ -507,8 +654,13 @@ const updateOrderPosition = async (sourceOrderId: string, targetOrderId: string)
     completeRepairOrder,
     getRepairOrdersByStatus,
     getRepairOrdersByTechnician,
-    updatePriority,      // Added for QueueManagement
-    updateOrderPosition, // Added for QueueManagement
+    updatePriority,
+    updateOrderPosition,
+    // Technician functions
+    technicianOrders,
+    getNextRepairOrder,
+    technicianActiveOrderCount,
+    canRequestNewOrder
   };
 
   return (

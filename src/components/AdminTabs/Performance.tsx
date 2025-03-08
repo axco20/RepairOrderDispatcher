@@ -1,7 +1,20 @@
+"use client";
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { Clock } from "lucide-react";
 import { supabase } from '@/lib/supabaseClient';
+
+// Hydration fix hook
+function useHydration() {
+  const [isHydrated, setIsHydrated] = useState(false);
+  
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+  
+  return isHydrated;
+}
 
 interface Technician {
   id: string;
@@ -22,7 +35,8 @@ interface TechnicianPerformance {
 }
 
 const Performance: React.FC = () => {
-  const { repairOrders, assignments } = useRepairOrders();
+  const isHydrated = useHydration();
+  const { repairOrders = [], assignments = [] } = useRepairOrders();
   const [timeRange, setTimeRange] = useState<"day" | "week" | "month" | "year">("week");
   const [techPerformance, setTechPerformance] = useState<TechnicianPerformance[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -30,121 +44,147 @@ const Performance: React.FC = () => {
   // Fetch technicians from Supabase
   useEffect(() => {
     const fetchTechnicians = async () => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('role', 'technician');
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('role', 'technician');
 
-      if (error) {
-        console.error('Error fetching technicians:', error);
-      } else if (data) {
-        setTechnicians(data);
+        if (error) {
+          console.error('Error fetching technicians:', error);
+        } else if (data) {
+          setTechnicians(data);
+        }
+      } catch (err) {
+        console.error('Error in fetchTechnicians:', err);
       }
     };
+    
     fetchTechnicians();
   }, []);
 
   // Helper to get a technician's name by auth_id - using useCallback to memoize
-  const getTechnicianName = useCallback((auth_id?: string) => {
-    if (!auth_id) return 'Unknown';
-    const tech = technicians.find((t) => t.auth_id === auth_id);
+  const getTechnicianName = useCallback((technicianId?: string) => {
+    if (!technicianId) return 'Unknown';
+    const tech = technicians.find(t => t.id === technicianId || t.auth_id === technicianId);
     return tech ? tech.name : 'Unknown';
   }, [technicians]);
   
   // Process data for metrics
   useEffect(() => {
-    // Get date range based on selected time period
-    const getDateRange = () => {
-      const now = new Date();
-      const endDate = now;
-      const startDate = new Date();
-      
-      switch(timeRange) {
-        case "day":
-          startDate.setHours(0, 0, 0, 0);
-          break;
-        case "week":
-          startDate.setDate(startDate.getDate() - 7);
-          break;
-        case "month":
-          startDate.setMonth(startDate.getMonth() - 1);
-          break;
-        case "year":
-          startDate.setFullYear(startDate.getFullYear() - 1);
-          break;
-      }
-      
-      return { startDate, endDate };
-    };
+    // Guard against missing data
+    if (!assignments || !Array.isArray(assignments)) {
+      console.log('No assignments data available');
+      return;
+    }
     
-    const { startDate, endDate } = getDateRange();
-    
-    // Calculate technician performance
-    const calculateTechPerformance = () => {
-      // Get completed assignments in the date range
-      const relevantAssignments = assignments.filter(assignment => {
-        if (!assignment.completedAt) return false;
-        const completedDate = new Date(assignment.completedAt);
-        return completedDate >= startDate && completedDate <= endDate;
-      });
-      
-      // Group by technician
-      const techStats: Record<string, TechnicianPerformance> = {};
-      
-      relevantAssignments.forEach(assignment => {
-        const { technicianId, assignedAt, completedAt } = assignment;
+    try {
+      // Get date range based on selected time period
+      const getDateRange = () => {
+        const now = new Date();
+        const endDate = now;
+        const startDate = new Date();
         
-        if (!techStats[technicianId]) {
-          techStats[technicianId] = {
-            technicianId,
-            completedCount: 0,
-            totalTimeMs: 0,
-            averageTimeMs: 0,
-            averageMinutes: 0,
-            technicianName: getTechnicianName(technicianId)
-          };
+        switch(timeRange) {
+          case "day":
+            startDate.setHours(0, 0, 0, 0);
+            break;
+          case "week":
+            startDate.setDate(startDate.getDate() - 7);
+            break;
+          case "month":
+            startDate.setMonth(startDate.getMonth() - 1);
+            break;
+          case "year":
+            startDate.setFullYear(startDate.getFullYear() - 1);
+            break;
         }
         
-        // Calculate time to complete
-        if (assignedAt && completedAt) {
-          const startTime = new Date(assignedAt).getTime();
-          const endTime = new Date(completedAt).getTime();
-          const timeToComplete = endTime - startTime;
+        return { startDate, endDate };
+      };
+      
+      const { startDate, endDate } = getDateRange();
+      
+      // Calculate technician performance
+      const calculateTechPerformance = () => {
+        // Get completed assignments in the date range
+        const relevantAssignments = assignments.filter(assignment => {
+          if (!assignment.completedAt) return false;
+          const completedDate = new Date(assignment.completedAt);
+          return completedDate >= startDate && completedDate <= endDate;
+        });
+        
+        // Group by technician
+        const techStats: Record<string, TechnicianPerformance> = {};
+        
+        relevantAssignments.forEach(assignment => {
+          const { technicianId, assignedAt, completedAt } = assignment;
           
-          techStats[technicianId].completedCount += 1;
-          techStats[technicianId].totalTimeMs += timeToComplete;
-        }
-      });
+          if (!technicianId) return;
+          
+          if (!techStats[technicianId]) {
+            techStats[technicianId] = {
+              technicianId,
+              technicianName: getTechnicianName(technicianId),
+              completedCount: 0,
+              totalTimeMs: 0,
+              averageTimeMs: 0,
+              averageMinutes: 0
+            };
+          }
+          
+          // Calculate time to complete
+          if (assignedAt && completedAt) {
+            const startTime = new Date(assignedAt).getTime();
+            const endTime = new Date(completedAt).getTime();
+            const timeToComplete = endTime - startTime;
+            
+            techStats[technicianId].completedCount += 1;
+            techStats[technicianId].totalTimeMs += timeToComplete;
+          }
+        });
+        
+        // Calculate averages
+        Object.values(techStats).forEach((stat) => {
+          if (stat.completedCount > 0) {
+            stat.averageTimeMs = Math.round(stat.totalTimeMs / stat.completedCount);
+            // Convert to minutes for display
+            stat.averageMinutes = Math.round(stat.averageTimeMs / (1000 * 60));
+          }
+        });
+        
+        // Convert to array and sort by completed count
+        return Object.values(techStats).sort((a, b) => b.completedCount - a.completedCount);
+      };
       
-      // Calculate averages
-      Object.values(techStats).forEach((stat) => {
-        if (stat.completedCount > 0) {
-          stat.averageTimeMs = Math.round(stat.totalTimeMs / stat.completedCount);
-          // Convert to minutes for display
-          stat.averageMinutes = Math.round(stat.averageTimeMs / (1000 * 60));
-        }
-      });
+      const performanceData = calculateTechPerformance();
+      setTechPerformance(performanceData);
       
-      // Convert to array and sort by completed count
-      return Object.values(techStats).sort((a, b) => b.completedCount - a.completedCount);
-    };
-    
-    setTechPerformance(calculateTechPerformance());
-    
+    } catch (error) {
+      console.error('Error processing performance data:', error);
+      setTechPerformance([]);
+    }
   }, [timeRange, assignments, getTechnicianName]);
 
   // Function to get current workload for a technician
-  const getCurrentWorkload = (technicianId: string) => {
+  const getCurrentWorkload = useCallback((technicianId: string) => {
+    if (!repairOrders || !Array.isArray(repairOrders)) return 0;
+    
     return repairOrders.filter(
       order => order.assignedTo === technicianId && order.status === 'in_progress'
     ).length;
-  };
+  }, [repairOrders]);
 
   // Calculate max values for scaling
-  const maxCompletedCount = Math.max(...techPerformance.map(tech => tech.completedCount || 0), 1);
+  const maxCompletedCount = Math.max(...(techPerformance || []).map(tech => tech.completedCount || 0), 1);
+
+  // Return a simple loading state if the component is not yet hydrated
+  if (!isHydrated) {
+    return <div className="p-6">Loading performance data...</div>;
+  }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 p-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Technician Performance</h1>

@@ -1,8 +1,9 @@
+// types/repairAssignment.ts
 export interface RepairOrderAssignment {
-    repairOrderId: string;
-    technicianId: string;
-    assignedAt: string;
-    status: "in_progress" | "completed";
-    completedAt?: string;
-  }
-  
+  id?: string;
+  repairOrderId: string;
+  technicianId: string;
+  assignedAt: string;
+  status: "in_progress" | "completed";
+  completedAt?: string;
+}
