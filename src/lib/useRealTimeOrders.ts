@@ -10,13 +10,13 @@ export const useRealTimeOrders = (refreshOrders: () => void) => {
         { event: '*', schema: 'public', table: 'repair_orders' },
         (payload) => {
           console.log("🔄 Real-time update received:", payload);
-          refreshOrders(); // Fetch latest data
+          refreshOrders(); 
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(subscription); // Cleanup on unmount
+      supabase.removeChannel(subscription);
     };
   }, [refreshOrders]);
 };
