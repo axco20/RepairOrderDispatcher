@@ -1,15 +1,16 @@
-import React, { FC } from 'react';
-import Image from 'next/image';
-import { ArrowRight, ChevronDown } from 'lucide-react';
-import { Feature } from '../types';
+import React, { FC } from "react";
+import Image from "next/image";
+import { ArrowRight, ChevronDown } from "lucide-react";
+import { Feature } from "../types";
 
 interface HomeProps {
   features: Feature[];
-  handleNavigation: (tab: 'features') => void;
+  handleNavigation: (tab: "features") => void;
 }
 
 const Home: FC<HomeProps> = ({ features, handleNavigation }) => {
-  {/* 
+  {
+    /* 
   // Testimonials data
   const testimonials: Testimonial[] = [
     {
@@ -27,42 +28,47 @@ const Home: FC<HomeProps> = ({ features, handleNavigation }) => {
       author: "Michael Brown",
       role: "Director, Brown's Auto Group"
     }
-  ];*/}
+  ];*/
+  }
 
   return (
     <>
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          <div>
-            <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 leading-tight mb-6">
-              Streamline Your Auto Repair Workflow
-            </h1>
-            <p className="text-xl text-gray-600 mb-8">
-              A comprehensive work order management platform designed for modern automotive service centers.
-              Efficiently manage repairs, track progress, and boost productivity.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <button className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center">
-                Get Started <ArrowRight className="ml-2 h-5 w-5" />
-              </button>
-              <button className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 transition-colors">
-                View Demo
-              </button>
-            </div>
-          </div>
-          <div className="relative h-full w-full">
-            <Image
-              src="/images/screenshotofdash.png"
-              alt="Dashboard Screenshot"
-              fill
-              sizes="(max-width: 768px) 100vw, 300px"
-              
-              priority // This is important for the hero image (LCP)
-            />
-          </div>
-        </div>
-      </section>
+      <section className="max-w-[90rem] mx-auto px-6 sm:px-12 lg:px-16 py-20">
+  <div className="flex flex-col lg:flex-row gap-12 items-center">
+    
+    {/* Left Side: Text - Now with flex-shrink to allow it to take less space */}
+    <div className="flex flex-col justify-center flex-shrink-1 lg:max-w-md">
+      <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 leading-snug mb-6">
+        Streamline Your Auto Repair Workflow
+      </h1>
+      <p className="text-lg text-gray-600 mb-6">
+        A comprehensive work order management platform designed for modern automotive service centers.
+        Efficiently manage repairs, track progress, and boost productivity.
+      </p>
+      <div>
+        <button className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center">
+          Get Started <ArrowRight className="ml-2 h-5 w-5" />
+        </button>
+      </div>
+    </div>
+
+    {/* Right Side: Image - With original dimensions but overflow handling */}
+    <div className="relative flex-shrink-0 flex-grow overflow-visible">
+      <Image
+        src="/images/screenshotofdash.png"
+        alt="Dashboard Screenshot"
+        width={900}
+        height={600}
+        quality={100}
+        priority
+        className="rounded-lg shadow-lg"
+      />
+    </div>
+
+  </div>
+</section>
+
 
       {/* Features Highlight */}
       <section className="bg-white py-20">
@@ -71,20 +77,26 @@ const Home: FC<HomeProps> = ({ features, handleNavigation }) => {
             Everything you need to manage your auto repair business
           </h2>
           <p className="text-center text-gray-600 mb-12 max-w-3xl mx-auto">
-            Our platform is designed specifically for automotive repair shops to streamline operations and increase efficiency.
+            Our platform is designed specifically for automotive repair shops to
+            streamline operations and increase efficiency.
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((feature, index) => (
-              <div key={index} className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+              <div
+                key={index}
+                className="bg-gray-50 p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+              >
                 <div className="mb-4">{feature.icon}</div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">{feature.title}</h3>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  {feature.title}
+                </h3>
                 <p className="text-gray-600">{feature.description}</p>
               </div>
             ))}
           </div>
           <div className="mt-12 text-center">
-            <button 
-              onClick={() => handleNavigation('features')}
+            <button
+              onClick={() => handleNavigation("features")}
               className="text-blue-600 font-medium hover:text-blue-800 flex items-center mx-auto"
             >
               See all features <ChevronDown className="ml-1 h-5 w-5" />
@@ -128,7 +140,8 @@ const Home: FC<HomeProps> = ({ features, handleNavigation }) => {
             Ready to transform your auto repair business?
           </h2>
           <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join thousands of auto repair shops that trust our platform for their daily operations.
+            Join thousands of auto repair shops that trust our platform for
+            their daily operations.
           </p>
           <button className="bg-white text-blue-600 px-8 py-3 rounded-lg hover:bg-blue-50 transition-colors text-lg font-semibold">
             Start Free Trial
