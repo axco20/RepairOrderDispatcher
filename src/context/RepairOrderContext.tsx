@@ -299,11 +299,12 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
   const assignRepairOrder = async (repairOrderId: string, technicianId: string): Promise<boolean> => {
     try {
       console.log(`🔄 Attempting to assign order ${repairOrderId} to technician ${technicianId}`);
+      const now = new Date().toISOString();
   
       // ✅ Only update the `assigned_to` column
       const { data, error } = await supabase
         .from("repair_orders")
-        .update({ assigned_to: technicianId, status: "in_progress" }) // ✅ Only updating `assigned_to`
+        .update({ assigned_to: technicianId, status: "in_progress", assigned_at: now }) 
         .eq("id", repairOrderId)
         .select();
   
@@ -356,30 +357,8 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
       
       if (updateError) {
         throw new Error(updateError.message);
-      }
-      
-      // Update assignment if it exists
-      const { data: assignments } = await supabase
-        .from('repair_assignments')
-        .select('*')
-        .eq('repair_order_id', repairOrderId);  // snake_case
-      
-      if (assignments && assignments.length > 0) {
-        const { error: assignError } = await supabase
-          .from('repair_assignments')
-          .update({
-            status: 'completed',
-            completed_at: now         // snake_case
-          })
-          .eq('repair_order_id', repairOrderId);  // snake_case
-        
-        if (assignError) {
-          throw new Error(assignError.message);
-        }
-      }
-      
+      }   
       await refreshOrders();
-      await fetchAssignments();
       return true;
     } catch (err) {
       console.error(`Error completing repair order ${repairOrderId}:`, err);

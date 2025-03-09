@@ -78,15 +78,15 @@ export default function CompletedOrders() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {completedOrders.map((order) => (
-                  <tr key={order.id}>
+                  <tr key={order.description}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {order.id}
+                        {order.description}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-gray-900">
-                        {order.description}
+                        {order.orderDescription}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

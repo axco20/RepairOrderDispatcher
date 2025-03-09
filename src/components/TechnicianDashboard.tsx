@@ -9,9 +9,11 @@ import ActiveOrders from "@/components/TechnicianTabs/ActiveOrders";
 import CompletedOrders from "@/components/TechnicianTabs/CompletedOrders";
 import Help from "@/components/TechnicianTabs/Help";
 import { toast } from "react-toastify";
+import { useRealTimeOrders } from "@/lib/useRealTimeOrders";
 
 export default function TechnicianDashboard() {
   const { currentUser, logout } = useAuth();
+  
   const { 
     technicianOrders, 
     getNextRepairOrder, 
@@ -20,6 +22,9 @@ export default function TechnicianDashboard() {
     pendingOrders,
     refreshOrders
   } = useRepairOrders();
+
+  useRealTimeOrders(refreshOrders); 
+
   
   const [activePage, setActivePage] = useState<"Home" | "ActiveOrders" | "CompletedOrders" | "Help">("Home");
   const [isAssigningOrder, setIsAssigningOrder] = useState(false);
