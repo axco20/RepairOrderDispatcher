@@ -1,38 +1,42 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { Clock, CheckCircle } from "lucide-react";
 
 export default function CompletedOrders() {
   const { currentUser } = useAuth();
-  const { technicianOrders } = useRepairOrders();
+  const { technicianOrders, refreshOrders } = useRepairOrders();
+  
 
   if (!currentUser) return <p>Loading...</p>;
 
-  const completedOrders = technicianOrders(currentUser.id)
+  console.log("📋 Fetching all technician orders...");
+  const allOrders = technicianOrders(currentUser.id);
+  console.log("✅ Technician orders:", allOrders);
+
+  const completedOrders = allOrders
     .filter((order) => order.status === "completed")
     .sort((a, b) => {
-      // Sort by completion date (newest first)
       const dateA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
       const dateB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
       return dateB - dateA;
     });
 
-  // Function to calculate time difference between assignment and completion
+  console.log("✅ Filtered completed orders:", completedOrders);
+
   const calculateTimeToComplete = (assignedAt: string | undefined, completedAt: string | undefined): string => {
     if (!assignedAt || !completedAt) return "N/A";
-    
+
     const startDate = new Date(assignedAt);
     const endDate = new Date(completedAt);
     const diffMs = endDate.getTime() - startDate.getTime();
-    
-    // Calculate minutes, hours, and days
+
     const minutes = Math.floor(diffMs / (1000 * 60));
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
-    
+
     if (days > 0) {
       return `${days}d ${hours % 24}h ${minutes % 60}m`;
     } else if (hours > 0) {
@@ -49,9 +53,7 @@ export default function CompletedOrders() {
       {completedOrders.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-6 text-center">
           <p className="text-gray-500">No completed repair orders</p>
-          <p className="text-sm text-gray-400 mt-2">
-            Orders you complete will appear here
-          </p>
+          <p className="text-sm text-gray-400 mt-2">Orders you complete will appear here</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -78,29 +80,26 @@ export default function CompletedOrders() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {completedOrders.map((order) => (
-                  <tr key={order.description}>
+                  <tr key={order.id}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {order.description}
+                        {order.id.substring(0, 8)}...
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">
-                        {order.orderDescription}
+                      <div className="text-sm text-gray-900">{order.description}</div>
+                      {order.orderDescription && (
+                        <div className="text-xs text-gray-500 mt-1">{order.orderDescription}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {order.assignedAt ? new Date(order.assignedAt).toLocaleString() : "N/A"}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">
-                        {order.assignedAt
-                          ? new Date(order.assignedAt).toLocaleString()
-                          : "N/A"}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
-                        {order.completedAt
-                          ? new Date(order.completedAt).toLocaleString()
-                          : "N/A"}
+                        {order.completedAt ? new Date(order.completedAt).toLocaleString() : "N/A"}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -125,7 +124,8 @@ export default function CompletedOrders() {
             </div>
             <div className="ml-3">
               <p className="text-sm text-green-700">
-                Great job! You have completed {completedOrders.length} repair order{completedOrders.length !== 1 ? 's' : ''}.
+                Great job! You have completed {completedOrders.length} repair order
+                {completedOrders.length !== 1 ? "s" : ""}.
               </p>
             </div>
           </div>

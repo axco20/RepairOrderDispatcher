@@ -6,11 +6,14 @@ import { useRepairOrders } from "@/context/RepairOrderContext";
 import { CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "react-toastify";
 
+
 export default function ActiveOrders() {
   const { currentUser } = useAuth();
   const { technicianOrders, completeRepairOrder, refreshOrders } = useRepairOrders();
   const [isCompletingOrder, setIsCompletingOrder] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+
 
   // FIX: Only run once on mount and do manual refresh after state changes
   useEffect(() => {
