@@ -12,7 +12,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AuthProvider>
           <RepairOrderProvider>
-            <RealTimeOrdersProvider> 
               {children}
               <ToastContainer 
                 position="top-right"
@@ -26,7 +25,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 pauseOnHover 
                 theme="light"
               />
-            </RealTimeOrdersProvider>
           </RepairOrderProvider>
         </AuthProvider>
       </body>

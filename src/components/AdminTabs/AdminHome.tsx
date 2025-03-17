@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { BarChart, Activity, Award, ArrowUp, ArrowDown, Calendar, Users, Settings } from "lucide-react";
 import { supabase } from '@/lib/supabaseClient';
+import ActiveRepairOrdersTable from './ActiveRepairOrderTable';
+import TechnicianWorkload from './TechnicianWorkload';  // Import the new component
+
 
 interface Technician {
   id: string;
@@ -353,7 +356,7 @@ const AdminHome: React.FC = () => {
         </div>
       </div>
       
-      {/* Stats Cards Row 2 */}
+      {/* Stats Cards Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow-md p-6 transition-all hover:shadow-lg">
           <div className="flex justify-between items-start">
@@ -396,6 +399,23 @@ const AdminHome: React.FC = () => {
               <Calendar className="h-6 w-6" />
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Two column layout for Orders Table and Technician Workload */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column - Active Repair Orders Table */}
+        <div className="lg:col-span-2">
+          <ActiveRepairOrdersTable repairOrders={repairOrders} />
+        </div>
+        
+        {/* Right column - Technician Workload */}
+        <div className="lg:col-span-1">
+          <TechnicianWorkload 
+            technicians={technicians}
+            repairOrders={repairOrders}
+            limit={6}
+          />
         </div>
       </div>
       

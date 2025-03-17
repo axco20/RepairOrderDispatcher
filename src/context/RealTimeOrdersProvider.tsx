@@ -21,7 +21,7 @@ export const RealTimeOrdersProvider = ({ children }: { children: React.ReactNode
 
     const interval = setInterval(() => {
       loadOrders();
-    }, 5000); // Refresh every 5 seconds
+    }, 100000); // Refresh every 5 seconds
 
     return () => clearInterval(interval);
   }, [refreshOrders]); // Dependency to prevent multiple subscriptions
