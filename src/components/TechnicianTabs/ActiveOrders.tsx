@@ -3,33 +3,31 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRepairOrders } from "@/context/RepairOrderContext";
-import { CheckCircle, Clock, AlertTriangle } from "lucide-react";
+import { CheckCircle, Clock, AlertTriangle, XCircle } from "lucide-react";
 import { toast } from "react-toastify";
-
+import { supabase } from "@/lib/supabaseClient";
 
 export default function ActiveOrders() {
   const { currentUser } = useAuth();
   const { technicianOrders, completeRepairOrder, refreshOrders } = useRepairOrders();
   const [isCompletingOrder, setIsCompletingOrder] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null); // State for confirmation modal
 
-
-
-  // FIX: Only run once on mount and do manual refresh after state changes
+  // Fetch and refresh orders
   useEffect(() => {
     const loadOrders = async () => {
       setRefreshing(true);
       await refreshOrders();
       setRefreshing(false);
     };
-    
+
     loadOrders();
-    
+
     // Auto-refresh every 30 seconds
     const interval = setInterval(loadOrders, 30000);
     
     return () => clearInterval(interval);
-    // IMPORTANT: Remove refreshOrders from the dependency array
   }, []);
 
   if (!currentUser) return <p>Loading...</p>;
@@ -37,25 +35,49 @@ export default function ActiveOrders() {
   const activeOrders = technicianOrders(currentUser.id).filter(
     (order) => order.status === "in_progress" && order.assignedTo === currentUser.id
   );
-  console.log("🛠 Filtered activeOrders:", activeOrders);
-  
-  
-  
 
-  const handleCompleteOrder = async (orderId: string) => {
-    try {
-      setIsCompletingOrder(orderId);
-      const success = await completeRepairOrder(orderId);
+  console.log("🛠 Filtered activeOrders:", activeOrders);
+
+  // Handle confirming completion
+  const handleConfirmComplete = (orderId: string) => {
+    setConfirmingOrderId(orderId);
+  };
+
+  // Proceed with completion
+  const confirmCompletion = async () => {
+    if (confirmingOrderId) {
+      setIsCompletingOrder(confirmingOrderId);
+      const success = await completeRepairOrder(confirmingOrderId);
       
       if (success) {
         toast.success("Repair order marked as complete!");
-        await refreshOrders(); // Manual refresh after state change
+        await refreshOrders();
       } else {
         toast.error("Failed to complete repair order");
       }
+      
+      setConfirmingOrderId(null);
+      setIsCompletingOrder(null);
+    }
+  };
+
+  // Handle placing an order on hold
+  const handleOnHold = async (orderId: string) => {
+    try {
+      setIsCompletingOrder(orderId);
+
+      const { error } = await supabase
+        .from("repair_orders")
+        .update({ status: "on_hold" })
+        .eq("id", orderId);
+
+      if (error) throw error;
+
+      toast.success("Repair order marked as on hold!");
+      await refreshOrders();
     } catch (error) {
-      console.error("Error completing order:", error);
-      toast.error("An error occurred while completing the order");
+      console.error("Error updating order status:", error);
+      toast.error("An error occurred while updating the order status.");
     } finally {
       setIsCompletingOrder(null);
     }
@@ -65,9 +87,7 @@ export default function ActiveOrders() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">My Active Orders</h2>
-        {refreshing && (
-          <span className="text-sm text-gray-500 animate-pulse">Refreshing...</span>
-        )}
+        {refreshing && <span className="text-sm text-gray-500 animate-pulse">Refreshing...</span>}
       </div>
 
       {activeOrders.length === 0 ? (
@@ -83,98 +103,87 @@ export default function ActiveOrders() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Repair Order #
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Assigned At
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Time Elapsed
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Repair Order #</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned At</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time Elapsed</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {activeOrders.map((order) => {
-                  // Calculate time elapsed since assignment
                   const assignedDate = order.assignedAt ? new Date(order.assignedAt) : new Date();
                   const now = new Date();
                   const elapsedMs = now.getTime() - assignedDate.getTime();
                   const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
                   const elapsedHours = Math.floor(elapsedMinutes / 60);
                   
-                  let timeElapsed = "";
-                  if (elapsedHours > 0) {
-                    timeElapsed = `${elapsedHours}h ${elapsedMinutes % 60}m`;
-                  } else {
-                    timeElapsed = `${elapsedMinutes}m`;
-                  }
+                  let timeElapsed = elapsedHours > 0 
+                    ? `${elapsedHours}h ${elapsedMinutes % 60}m` 
+                    : `${elapsedMinutes}m`;
 
-                  // Show warning if over 2 hours
                   const showWarning = elapsedHours >= 2;
 
                   return (
                     <tr key={order.id}>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {/* Shortened ID for better display */}
-                          {order.id.substring(0, 8)}...
-                        </div>
+                        <div className="text-sm font-medium text-gray-900">{order.id.substring(0, 8)}...</div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {order.description}
-                        </div>
+                        <div className="text-sm text-gray-900">{order.description}</div>
                         {order.orderDescription && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            {order.orderDescription}
-                          </div>
+                          <div className="text-xs text-gray-500 mt-1">{order.orderDescription}</div>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-500">
-                          {order.assignedAt
-                            ? new Date(order.assignedAt).toLocaleString()
-                            : "N/A"}
+                          {order.assignedAt ? new Date(order.assignedAt).toLocaleString() : "N/A"}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className={`text-sm flex items-center ${
-                          showWarning ? 'text-amber-600' : 'text-gray-500'
-                        }`}>
-                          {showWarning ? (
-                            <AlertTriangle size={16} className="mr-1" />
-                          ) : (
-                            <Clock size={16} className="mr-1" />
-                          )}
+                        <div className={`text-sm flex items-center ${showWarning ? "text-amber-600" : "text-gray-500"}`}>
+                          {showWarning ? <AlertTriangle size={16} className="mr-1" /> : <Clock size={16} className="mr-1" />}
                           {timeElapsed}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => handleCompleteOrder(order.id)}
-                          disabled={isCompletingOrder === order.id}
-                          className={`flex items-center ${
-                            isCompletingOrder === order.id
-                              ? "text-gray-400 cursor-not-allowed"
-                              : "text-green-600 hover:text-green-900"
-                          }`}
-                        >
-                          <CheckCircle size={16} className="mr-1" />
-                          {isCompletingOrder === order.id ? "Completing..." : "Mark Complete"}
-                        </button>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                        <div className="flex items-center justify-center gap-x-6">
+                          <button
+                            onClick={() => handleConfirmComplete(order.id)}
+                            className="flex items-center px-4 py-2 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 transition-all duration-300"
+                          >
+                            <CheckCircle size={18} className="mr-2" />
+                            Mark Complete
+                          </button>
+
+                          <button
+                            onClick={() => handleOnHold(order.id)}
+                            className="flex items-center px-4 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all duration-300"
+                          >
+                            <CheckCircle size={18} className="mr-2" />
+                            Place On Hold
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmingOrderId && (
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur">
+        <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+            <h3 className="text-lg font-semibold text-gray-800">Confirm Completion</h3>
+            <p className="text-gray-600 mt-2">Are you sure you want to complete this order?</p>
+            <div className="flex justify-end space-x-4 mt-4">
+              <button onClick={() => setConfirmingOrderId(null)} className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+              <button onClick={confirmCompletion} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Confirm</button>
+            </div>
           </div>
         </div>
       )}

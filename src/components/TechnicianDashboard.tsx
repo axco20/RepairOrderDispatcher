@@ -7,6 +7,7 @@ import TechSidebar from "@/components/TechSideBar";
 import Home from "@/components/TechnicianTabs/Home";
 import ActiveOrders from "@/components/TechnicianTabs/ActiveOrders";
 import CompletedOrders from "@/components/TechnicianTabs/CompletedOrders";
+import OnHoldOrders from "@/components/TechnicianTabs/OnHoldOrders";
 import Help from "@/components/TechnicianTabs/Help";
 import { toast } from "react-toastify";
 import { useRealTimeOrders } from "@/lib/useRealTimeOrders";
@@ -26,7 +27,7 @@ export default function TechnicianDashboard() {
   useRealTimeOrders(refreshOrders); 
 
   
-  const [activePage, setActivePage] = useState<"Home" | "ActiveOrders" | "CompletedOrders" | "Help">("Home");
+  const [activePage, setActivePage] = useState<"Home" | "ActiveOrders"| "OnHoldOrders" | "CompletedOrders" | "Help">("Home");
   const [isAssigningOrder, setIsAssigningOrder] = useState(false);
 
   // FIX: Only run once on mount instead of on every render
@@ -103,6 +104,7 @@ export default function TechnicianDashboard() {
             />
           )}
           {activePage === "ActiveOrders" && <ActiveOrders />}
+          {activePage === "OnHoldOrders" && <OnHoldOrders />}
           {activePage === "CompletedOrders" && <CompletedOrders />}
           {activePage === "Help" && <Help />}
         </main>

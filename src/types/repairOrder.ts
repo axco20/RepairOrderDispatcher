@@ -6,7 +6,7 @@ export interface RepairOrder {
   order_description?: string; // Add snake_case version
   createdAt: string;
   created_at?: string; // Add snake_case version
-  status: 'pending' | 'in_progress' | 'completed';
+  status: 'pending' | 'in_progress' | 'completed' | 'on_hold';
   priority: number;
   priorityType?: 'WAIT' | 'VALET' | 'LOANER';
   priority_type?: 'WAIT' | 'VALET' | 'LOANER'; // Add snake_case version

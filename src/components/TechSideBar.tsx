@@ -3,7 +3,7 @@
 import React from "react";
 import { Home, CheckCircle, HelpCircle, LogOut } from "lucide-react";
 
-export type PageType = "Home" | "ActiveOrders" | "CompletedOrders" | "Help";
+export type PageType = "Home" | "ActiveOrders"| "OnHoldOrders" | "CompletedOrders" | "Help";
 
 interface TechSidebarProps {
   userName: string;
@@ -44,6 +44,7 @@ const TechSidebar: React.FC<TechSidebarProps> = ({
         {[
           { name: "Home", icon: Home },
           { name: "ActiveOrders", icon: CheckCircle },
+          { name: "OnHoldOrders", icon: CheckCircle},
           { name: "CompletedOrders", icon: CheckCircle },
           { name: "Help", icon: HelpCircle },
         ].map(({ name, icon: Icon }) => (

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Search } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient"; 
+import { supabase } from "@/lib/supabaseClient";
 import { toast } from "react-toastify";
-
 
 interface TeamMember {
   id: string;
@@ -14,7 +13,6 @@ interface TeamMember {
 }
 
 const TeamMembers: React.FC = () => {
-
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -57,32 +55,64 @@ const TeamMembers: React.FC = () => {
   const handleAddTechnician = () => {
     setIsModal2Open(true);
   };
-  const handleSendEmail = async () => {
+  const handleSendEmail = async (role: "admin" | "technician") => {
+    console.log("Starting invite process with role:", role, "and email:", email);
+    
     if (!email) {
       toast.error("❌ Please enter an email address.");
+      console.log("Error: Email is empty");
       return;
     }
-  
+    
     try {
-      const response = await fetch("/api/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-  
-      const result = await response.json();
-      if (response.ok) {
-        toast.success("✅ Email sent successfully!");
-      } else {
-        toast.error("❌ Error sending email: " + result.error);
+      // ✅ Fetch the current user's dealership ID
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      console.log("User data from auth:", userData);
+      console.log("User error:", userError);
+      
+      if (userError || !userData?.user?.id) {
+        console.log("Failed authentication check, user ID:", userData?.user?.id);
+        throw new Error("❌ Failed to retrieve authenticated user.");
       }
+      
+      // ✅ Use the correct user ID for lookup
+      console.log("Looking up user with auth_id:", userData.user.id);
+      const { data: adminData, error: adminError } = await supabase
+        .from("users")
+        .select("dealership_id")
+        .eq("auth_id", userData.user.id)
+        .single();
+      
+      console.log("Admin data:", adminData);
+      console.log("Admin error:", adminError);
+      console.log("Dealership ID:", adminData?.dealership_id);
+      
+      if (adminError || !adminData?.dealership_id) {
+        console.log("Failed admin lookup check, dealership ID:", adminData?.dealership_id);
+        throw new Error("❌ Failed to retrieve dealership ID.");
+      }
+      
+      // ✅ Generate invite link with dealership ID and role
+      const inviteUrl = `${window.location.origin}/signuppage?email=${encodeURIComponent(email)}&dealership_id=${adminData.dealership_id}&role=${role}`;      console.log("Generated invite URL:", inviteUrl);
+      
+      // ✅ Send email with the invite link
+      console.log("Sending email with payload:", { email, inviteUrl });
+      await fetch("/api/send-invite-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ email, inviteUrl }),
+      });
+      
+      toast.success("✅ Invitation sent successfully!");
+      setIsModalOpen(false);
+      setIsModal2Open(false);
+      setEmail("");
     } catch (error) {
-      toast.error("❌ Network error: " + error);
+      console.error("Error sending invitation:", error);
+      toast.error("❌ Error sending invitation.");
     }
-  
-    setIsModalOpen(false);
-    setIsModal2Open(false);
-    setEmail(""); 
   };
 
   const handleSendEmail2 = async () => {
@@ -90,14 +120,14 @@ const TeamMembers: React.FC = () => {
       toast.error("❌ Please enter an email address.");
       return;
     }
-  
+
     try {
       const response = await fetch("/api/send-email2", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-  
+
       const result = await response.json();
       if (response.ok) {
         toast.success("✅ Email sent successfully!");
@@ -107,10 +137,10 @@ const TeamMembers: React.FC = () => {
     } catch (error) {
       toast.error("❌ Network error: " + error);
     }
-  
+
     setIsModalOpen(false);
     setIsModal2Open(false);
-    setEmail(""); 
+    setEmail("");
   };
 
   return (
@@ -235,79 +265,77 @@ const TeamMembers: React.FC = () => {
         )}
       </div>
 
-{/* Modal for Adding Admin */}
-{isModalOpen && (
-  <div className="fixed inset-0 flex items-center justify-center ">
-    <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
-      <h2 className="text-lg font-bold text-white mb-4 text-center">
-        Enter Admin Email
-      </h2>
-      <input
-        type="email"
-        placeholder="example@example.com"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        className="w-full p-2 border border-gray-600 bg-[#374151] text-white rounded-md mb-4 
+      {/* Modal for Adding Admin */}
+      {isModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center ">
+          <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
+            <h2 className="text-lg font-bold text-white mb-4 text-center">
+              Enter Admin Email
+            </h2>
+            <input
+              type="email"
+              placeholder="example@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-2 border border-gray-600 bg-[#374151] text-white rounded-md mb-4 
         focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-      />
-      {/* Centered Buttons with Even Spacing */}
-      <div className="flex justify-center space-x-4">
-        <button
-          onClick={() => setIsModalOpen(false)}
-          className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 
+            />
+            {/* Centered Buttons with Even Spacing */}
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 
           focus:outline-none focus:ring-2 focus:ring-gray-500"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSendEmail}
-          className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleSendEmail("admin")}
+                className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 
           focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          Send Email
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+              >
+                Send Email
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-
-{/* Modal for Adding Technician */}
-{isModal2Open && (
-  <div className="fixed inset-0 flex items-center justify-center ">
-    <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
-      <h2 className="text-lg font-bold text-white mb-4 text-center">
-        Enter Technician Email
-      </h2>
-      <input
-        type="email"
-        placeholder="example@example.com"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        className="w-full p-2 border border-gray-600 bg-[#374151] text-white rounded-md mb-4 
+      {/* Modal for Adding Technician */}
+      {isModal2Open && (
+        <div className="fixed inset-0 flex items-center justify-center ">
+          <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
+            <h2 className="text-lg font-bold text-white mb-4 text-center">
+              Enter Technician Email
+            </h2>
+            <input
+              type="email"
+              placeholder="example@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-2 border border-gray-600 bg-[#374151] text-white rounded-md mb-4 
         focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-      />
-      {/* Centered Buttons with Even Spacing */}
-      <div className="flex justify-center space-x-4">
-        <button
-          onClick={() => setIsModal2Open(false)}
-          className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 
+            />
+            {/* Centered Buttons with Even Spacing */}
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => setIsModal2Open(false)}
+                className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 
           focus:outline-none focus:ring-2 focus:ring-gray-500"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSendEmail2}
-          className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleSendEmail("technician")}
+                className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 
           focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          Send Email
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
+              >
+                Send Email
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
