@@ -22,7 +22,7 @@ interface OrderVolumeItem {
 
 const AdminHome: React.FC = () => {
   const { repairOrders } = useRepairOrders();
-  const [timeRange, setTimeRange] = useState<"day" | "week" | "month" | "year">("week");
+  const [timeRange, setTimeRange] = useState<"day" | "week" | "month" | "year">("day");
   const [orderVolume, setOrderVolume] = useState<OrderVolumeItem[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [trendData, setTrendData] = useState({ 
@@ -356,57 +356,13 @@ const AdminHome: React.FC = () => {
         </div>
       </div>
       
-      {/* Stats Cards Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6 transition-all hover:shadow-lg">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">Active Technicians</p>
-              <p className="text-3xl font-semibold text-gray-900">{activeTechnicians}</p>
-              <p className="text-sm text-gray-500 mt-2">Total workforce</p>
-            </div>
-            <div className="p-3 rounded-full bg-indigo-100 text-indigo-800">
-              <Users className="h-6 w-6" />
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 transition-all hover:shadow-lg">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">Workload per Technician</p>
-              <p className="text-3xl font-semibold text-gray-900">{avgOrdersPerTechnician}</p>
-              <p className="text-sm text-gray-500 mt-2">Average active orders</p>
-            </div>
-            <div className="p-3 rounded-full bg-teal-100 text-teal-800">
-              <Settings className="h-6 w-6" />
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 transition-all hover:shadow-lg">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">Time Period</p>
-              <p className="text-3xl font-semibold text-gray-900">
-                {timeRange === 'day' ? 'Today' : 
-                 timeRange === 'week' ? 'This Week' : 
-                 timeRange === 'month' ? 'This Month' : 'This Year'}
-              </p>
-              <p className="text-sm text-gray-500 mt-2">Current view</p>
-            </div>
-            <div className="p-3 rounded-full bg-pink-100 text-pink-800">
-              <Calendar className="h-6 w-6" />
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Stats Cards removed as requested */}
 
       {/* Two column layout for Orders Table and Technician Workload */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Active Repair Orders Table */}
         <div className="lg:col-span-2">
-          <ActiveRepairOrdersTable repairOrders={repairOrders} />
+          <ActiveRepairOrdersTable repairOrders={repairOrders.filter(order => order.status === 'pending')} />
         </div>
         
         {/* Right column - Technician Workload */}

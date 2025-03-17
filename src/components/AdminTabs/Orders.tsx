@@ -1,11 +1,8 @@
-"use client";
-
 // components/Orders.tsx
 import React, { useState, useEffect } from "react";
-import { Search } from "lucide-react";
+import { Search, Clock, Tag, Check, Plus, Trash2, Settings, CheckCircle, AlertTriangle } from "lucide-react";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { toast } from "react-toastify";
-
 
 const Orders: React.FC = () => {
   const {
@@ -20,10 +17,11 @@ const Orders: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [activeTab, setActiveTab] = useState("pending");
   const [formData, setFormData] = useState({
     description: "",
-    orderDescription: "", 
-    priority: 1,
+    orderDescription: "",
+    priority: 1, // Keeping this for backend compatibility
     priorityType: "WAIT" as "WAIT" | "VALET" | "LOANER",
     status: "pending" as "pending" | "in_progress" | "completed"
   });
@@ -54,6 +52,31 @@ const Orders: React.FC = () => {
     }));
   };
 
+  // Map priorityType to priority number to maintain functionality
+  const getPriorityFromType = (type: string): number => {
+    switch (type) {
+      case "WAIT":
+        return 1;
+      case "VALET":
+        return 2;
+      case "LOANER":
+        return 3;
+      default:
+        return 1;
+    }
+  };
+
+  const handlePriorityTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const priorityType = e.target.value as "WAIT" | "VALET" | "LOANER";
+    const priority = getPriorityFromType(priorityType);
+    
+    setFormData(prev => ({
+      ...prev,
+      priorityType,
+      priority // Update both priority and priorityType
+    }));
+  };
+
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -63,7 +86,13 @@ const Orders: React.FC = () => {
         return;
       }
 
-      const result = await createRepairOrder(formData);
+      // Ensure priority is set based on priorityType
+      const dataToSubmit = {
+        ...formData,
+        priority: getPriorityFromType(formData.priorityType)
+      };
+
+      const result = await createRepairOrder(dataToSubmit);
 
       if (result) {
         toast.success("✅ Repair order created successfully!");
@@ -75,6 +104,11 @@ const Orders: React.FC = () => {
           priorityType: "WAIT",
           status: "pending"
         });
+        
+        // Switch to the pending tab if we just added a pending order
+        if (formData.status === "pending") {
+          setActiveTab("pending");
+        }
       } else {
         toast.error("❌ Failed to create repair order.");
       }
@@ -85,7 +119,7 @@ const Orders: React.FC = () => {
 
   const handleStatusChange = async (id: string, newStatus: "pending" | "in_progress" | "completed") => {
     try {
-      const updates: Partial<any> = { status: newStatus };
+      let updates: Partial<any> = { status: newStatus };
       
       // Add timestamps for completed orders
       if (newStatus === "completed") {
@@ -119,138 +153,158 @@ const Orders: React.FC = () => {
     }
   };
 
-  // Priority label display
-  const getPriorityLabel = (priority: number, type?: string) => {
-    let label = "";
-    switch (priority) {
-      case 1:
-        label = "Low";
-        break;
-      case 2:
-        label = "Medium";
-        break;
-      case 3:
-        label = "High";
-        break;
-      default:
-        label = `Level ${priority}`;
-    }
-    
-    return type ? `${label} (${type})` : label;
-  };
-
-  // Get status color class
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "in_progress":
-        return "bg-blue-100 text-blue-800";
-      case "completed":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
   // Format date helper
   const formatDate = (dateString?: string) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleString();
+    const date = new Date(dateString);
+    return `${date.toLocaleDateString('en-US', { month: 'short', day: '2-digit' })}, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
   };
 
-  // Render a single order card
-  const renderOrderCard = (order: any) => (
-    <div
-      key={order.id}
-      className="bg-white p-4 rounded-lg shadow mb-4 border-l-4 border-indigo-500"
-    >
-      <div className="flex justify-between items-start">
-        <div>
-          <h3 className="font-medium text-gray-900">
-            {order.description}
-          </h3>
-          {order.orderDescription && (
-            <p className="text-sm mt-1 text-gray-500">
-              {order.orderDescription}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-col items-end">
-          <span
-            className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-              order.status
-            )}`}
-          >
-            {order.status.replace("_", " ")}
+  // Calculate wait time
+  const getWaitTime = (createdAt?: string) => {
+    if (!createdAt) return null;
+    
+    const created = new Date(createdAt);
+    const now = new Date();
+    const diffMinutes = Math.floor((now.getTime() - created.getTime()) / 60000);
+    
+    // Format based on wait time duration
+    let display = '';
+    let color = '';
+    
+    if (diffMinutes < 15) {
+      display = `${diffMinutes}m`;
+      color = 'text-orange-500';
+    } else if (diffMinutes < 30) {
+      display = `${diffMinutes}m`;
+      color = 'text-red-500';
+    } else {
+      display = `${diffMinutes}m`;
+      color = 'text-red-600 font-bold';
+    }
+    
+    return { display, color };
+  };
+
+  // Get status badge
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return (
+          <span className="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+            <Clock className="w-3 h-3" />
+            Pending
           </span>
-          <span className="text-xs text-gray-500 mt-1">
-            Created: {formatDate(order.createdAt)}
+        );
+      case "in_progress":
+        return (
+          <span className="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+            <Settings className="w-3 h-3" />
+            In Progress
           </span>
-          {order.completedAt && (
-            <span className="text-xs text-gray-500">
-              Completed: {formatDate(order.completedAt)}
-            </span>
-          )}
-        </div>
-      </div>
-      
-      <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center">
-        <div>
-          <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">
-            {getPriorityLabel(order.priority, order.priorityType)}
+        );
+      case "completed":
+        return (
+          <span className="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+            <Check className="w-3 h-3" />
+            Completed
           </span>
-        </div>
-        <div className="flex space-x-2">
-          <select
-            value={order.status}
-            onChange={(e) =>
-              handleStatusChange(
-                order.id,
-                e.target.value as "pending" | "in_progress" | "completed"
-              )
-            }
-            className="text-sm border border-gray-300 rounded p-1"
-          >
-            <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </select>
-          <button
-            onClick={() => handleDeleteOrder(order.id)}
-            className="text-red-600 hover:text-red-900 text-sm"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+        );
+      default:
+        return (
+          <span className="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+            {status.replace("_", " ")}
+          </span>
+        );
+    }
+  };
+
+  // Tab configuration
+  const tabs = [
+    { 
+      id: "pending", 
+      label: "Pending", 
+      count: pendingOrders.length, 
+      icon: <Clock className="w-5 h-5" />,
+      color: "yellow"
+    },
+    { 
+      id: "in_progress", 
+      label: "In Progress", 
+      count: inProgressOrders.length, 
+      icon: <Settings className="w-5 h-5" />,
+      color: "blue" 
+    },
+    { 
+      id: "completed", 
+      label: "Completed", 
+      count: completedOrders.length, 
+      icon: <CheckCircle className="w-5 h-5" />,
+      color: "green" 
+    }
+  ];
+
+  // Get orders for the active tab
+  const getActiveOrders = () => {
+    switch (activeTab) {
+      case "pending":
+        return pendingOrders;
+      case "in_progress":
+        return inProgressOrders;
+      case "completed":
+        return completedOrders;
+      default:
+        return pendingOrders;
+    }
+  };
+
+  // Get row background color based on status
+  const getRowBgColor = (status: string) => {
+    // All rows now have white background
+    return "bg-white";
+  };
+
+  // Get priority type label for display
+  const getPriorityTypeLabel = (priorityType: string) => {
+    switch (priorityType) {
+      case "WAIT":
+        return "Wait";
+      case "VALET":
+        return "Valet";
+      case "LOANER":
+        return "Loaner";
+      default:
+        return priorityType;
+    }
+  };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-5xl mx-auto">
+    <div className="p-4 bg-gray-50 min-h-screen">
+      <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Repair Orders</h1>
+          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <Settings className="w-5 h-5 text-indigo-600" />
+            Repair Orders
+          </h1>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="px-4 py-2 bg-indigo-600 text-white font-medium rounded hover:bg-indigo-700"
+            className="px-3 py-1.5 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 shadow-sm flex items-center gap-1 transition-colors duration-200 text-sm"
           >
-            {showForm ? "Cancel" : "New Order"}
+            {showForm ? "Cancel" : (<><Plus className="w-4 h-4" /> New Order</>)}
           </button>
         </div>
 
         {/* Search Bar */}
         <div className="relative mb-6">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
+            <Search className="h-4 w-4 text-gray-400" />
           </div>
           <input
             type="text"
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 
                        rounded-md leading-5 bg-white placeholder-gray-500 
-                       focus:outline-none focus:ring-indigo-500 
-                       focus:border-indigo-500 sm:text-sm"
+                       focus:outline-none focus:ring-2 focus:ring-indigo-500 
+                       focus:border-indigo-500 sm:text-sm shadow-sm"
             placeholder="Search repair orders..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -259,8 +313,9 @@ const Orders: React.FC = () => {
 
         {/* Create Order Form */}
         {showForm && (
-          <div className="bg-white p-6 rounded-lg shadow mb-8">
-            <h2 className="text-lg font-semibold text-gray-700 mb-4">
+          <div className="bg-white p-4 rounded-lg shadow-sm mb-6 border border-gray-200">
+            <h2 className="text-base font-semibold text-gray-700 mb-3 flex items-center gap-1">
+              <Plus className="w-4 h-4 text-indigo-600" />
               Create New Repair Order
             </h2>
             <form onSubmit={handleCreateOrder}>
@@ -276,7 +331,7 @@ const Orders: React.FC = () => {
                     onChange={handleInputChange}
                     required
                     placeholder="Brief issue description"
-                    className="w-full p-2 border border-gray-300 rounded"
+                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                   />
                 </div>
 
@@ -284,29 +339,16 @@ const Orders: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Priority
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      name="priority"
-                      value={formData.priority}
-                      onChange={handleInputChange}
-                      className="p-2 border border-gray-300 rounded"
-                    >
-                      <option value="1">Low</option>
-                      <option value="2">Medium</option>
-                      <option value="3">High</option>
-                    </select>
-
-                    <select
-                      name="priorityType"
-                      value={formData.priorityType}
-                      onChange={handleInputChange}
-                      className="p-2 border border-gray-300 rounded"
-                    >
-                      <option value="WAIT">Wait</option>
-                      <option value="VALET">Valet</option>
-                      <option value="LOANER">Loaner</option>
-                    </select>
-                  </div>
+                  <select
+                    name="priorityType"
+                    value={formData.priorityType}
+                    onChange={handlePriorityTypeChange}
+                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  >
+                    <option value="WAIT">Wait</option>
+                    <option value="VALET">Valet</option>
+                    <option value="LOANER">Loaner</option>
+                  </select>
                 </div>
               </div>
 
@@ -318,72 +360,142 @@ const Orders: React.FC = () => {
                   name="orderDescription"
                   value={formData.orderDescription}
                   onChange={handleInputChange}
-                  rows={3}
-                  className="w-full p-2 border border-gray-300 rounded"
-                ></textarea>
+                  rows={2}
+                  className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  placeholder="Additional details about the repair order..."
+                />
               </div>
 
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white font-medium rounded hover:bg-indigo-700"
+                  className="px-3 py-1.5 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 shadow-sm flex items-center gap-1 transition-colors duration-200 text-sm"
                 >
-                  Create Order
+                  <Check className="w-4 h-4" /> Create Order
                 </button>
               </div>
             </form>
           </div>
         )}
 
-        {loading ? (
-          <div className="text-center py-8">Loading repair orders...</div>
-        ) : error ? (
-          <div className="text-center py-8 text-red-600">{error}</div>
-        ) : filteredOrders.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <p className="text-gray-500">
-              No repair orders found. Create your first order to get started.
-            </p>
+        {/* Tab Navigation - REMOVED BORDER */}
+        <div className="bg-white shadow-sm rounded-t-lg">
+          <div className="flex">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center py-2 px-4 text-sm font-medium border-b-2 focus:outline-none ${
+                  activeTab === tab.id
+                    ? `border-${tab.color}-500 text-${tab.color}-600`
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                <span className={`mr-2 ${activeTab === tab.id ? `text-${tab.color}-500` : "text-gray-400"}`}>
+                  {tab.icon}
+                </span>
+                {tab.label}
+                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                  activeTab === tab.id 
+                    ? `bg-${tab.color}-100 text-${tab.color}-600` 
+                    : "bg-gray-100 text-gray-600"
+                }`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6">
-            {/* Pending Orders Section */}
-            <div>
-              <h2 className="text-lg font-semibold text-gray-700 mb-3">
-                Pending Orders ({pendingOrders.length})
-              </h2>
-              {pendingOrders.length === 0 ? (
-                <p className="text-sm text-gray-500 italic mb-4">No pending orders</p>
-              ) : (
-                pendingOrders.map(renderOrderCard)
-              )}
-            </div>
+        </div>
 
-            {/* In Progress Orders Section */}
-            <div>
-              <h2 className="text-lg font-semibold text-gray-700 mb-3">
-                In Progress ({inProgressOrders.length})
-              </h2>
-              {inProgressOrders.length === 0 ? (
-                <p className="text-sm text-gray-500 italic mb-4">No orders in progress</p>
-              ) : (
-                inProgressOrders.map(renderOrderCard)
-              )}
+        {/* Table Content - REMOVED BORDER */}
+        <div className="rounded-b-lg shadow-sm bg-white overflow-hidden">
+          {loading ? (
+            <div className="text-center py-6">Loading repair orders...</div>
+          ) : error ? (
+            <div className="text-center py-6 text-red-600">{error}</div>
+          ) : getActiveOrders().length === 0 ? (
+            <div className="text-center py-6">
+              <p className="text-gray-500">No {activeTab.replace("_", " ")} orders found.</p>
             </div>
-
-            {/* Completed Orders Section */}
-            <div>
-              <h2 className="text-lg font-semibold text-gray-700 mb-3">
-                Completed ({completedOrders.length})
-              </h2>
-              {completedOrders.length === 0 ? (
-                <p className="text-sm text-gray-500 italic">No completed orders</p>
-              ) : (
-                completedOrders.map(renderOrderCard)
-              )}
-            </div>
-          </div>
-        )}
+          ) : (
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                    Order ID
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                    Status
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                    Submitted
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                    Wait Time
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {getActiveOrders().map((order) => {
+                  const waitTime = getWaitTime(order.createdAt);
+                  return (
+                    <tr key={order.id} className={getRowBgColor(order.status)}>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {order.id ? `#${order.id.substring(0, 6)}` : 'N/A'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {getStatusBadge(order.status)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                        {formatDate(order.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {waitTime && (
+                          <div className={`flex items-center gap-1 ${waitTime.color}`}>
+                            {parseInt(waitTime.display) > 15 ? (
+                              <AlertTriangle className="w-4 h-4" />
+                            ) : (
+                              <Clock className="w-4 h-4" />
+                            )}
+                            {waitTime.display}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end gap-2">
+                          <select
+                            value={order.status}
+                            onChange={(e) =>
+                              handleStatusChange(
+                                order.id,
+                                e.target.value as "pending" | "in_progress" | "completed"
+                              )
+                            }
+                            className="text-xs border border-gray-300 rounded p-1 bg-white shadow-sm hover:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                          </select>
+                          <button
+                            onClick={() => handleDeleteOrder(order.id)}
+                            className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors duration-200"
+                            aria-label="Delete order"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   );
