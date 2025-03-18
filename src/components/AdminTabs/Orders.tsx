@@ -1,8 +1,19 @@
 // components/Orders.tsx
-import React, { useState, useEffect } from "react";
-import { Search, Clock, Tag, Check, Plus, Trash2, Settings, CheckCircle, AlertTriangle } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Search,
+  Clock,
+  Tag,
+  Check,
+  Plus,
+  Trash2,
+  Settings,
+  CheckCircle,
+  AlertTriangle,
+} from "lucide-react";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { toast } from "react-toastify";
+import { supabase } from "@/lib/supabaseClient";
 
 interface RepairOrder {
   id: string;
@@ -24,10 +35,13 @@ const Orders: React.FC = () => {
     refreshOrders,
     createRepairOrder,
     updateRepairOrder,
-    deleteRepairOrder
+    deleteRepairOrder,
   } = useRepairOrders();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [technicianNames, setTechnicianNames] = useState<{
+    [key: string]: string;
+  }>({}); // Store technician names
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState("pending");
   const [formData, setFormData] = useState({
@@ -36,9 +50,10 @@ const Orders: React.FC = () => {
     priority: 1, // Keeping this for backend compatibility
     priorityType: "WAIT" as "WAIT" | "VALET" | "LOANER",
     status: "pending" as "pending" | "in_progress" | "completed",
-    assignedTo: ""
+    assignedTo: "",
   });
-  
+  const fetchedTechnicians = useRef(false); // Prevents multiple fetches
+
   // For the assignment modal
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState("");
@@ -47,6 +62,48 @@ const Orders: React.FC = () => {
   useEffect(() => {
     refreshOrders();
   }, []);
+
+  useEffect(() => {
+    if (!fetchedTechnicians.current && repairOrders.length > 0) {
+      fetchTechnicianNames();
+      fetchedTechnicians.current = true; // Mark as fetched
+    }
+  }, [repairOrders]); // Only runs when repairOrders change
+
+  const fetchTechnicianNames = async () => {
+    const assignedToIds = repairOrders
+      .map((order) => order.assignedTo)
+      .filter((id) => id && id.trim() !== ""); // Get only valid IDs
+      
+    console.log("Fetching for assignedTo IDs:", assignedToIds);
+      
+    if (assignedToIds.length === 0) return;
+      
+    const { data, error } = await supabase
+      .from("users")
+      .select("auth_id, name")
+      .in("auth_id", assignedToIds);
+      
+    if (error) {
+      console.error("❌ Error fetching technician names:", error);
+      return;
+    }
+      
+    console.log("✅ Supabase Response:", data);
+      
+    // Create the mapping object correctly
+    const namesMap: { [key: string]: string } = {};
+    if (data && data.length > 0) {
+      data.forEach((user) => {
+        namesMap[user.auth_id] = user.name;
+      });
+    }
+      
+    console.log("✅ Technician Name Map:", namesMap);
+      
+    setTechnicianNames(namesMap);
+  };
+  
 
   // Filtered orders based on search query
   const filteredOrders = repairOrders.filter(
@@ -57,20 +114,28 @@ const Orders: React.FC = () => {
 
   // Group orders by status and sort completed orders by completion date (most recent first)
   const pendingOrders = filteredOrders.filter((o) => o.status === "pending");
-  const inProgressOrders = filteredOrders.filter((o) => o.status === "in_progress");
+  const inProgressOrders = filteredOrders.filter(
+    (o) => o.status === "in_progress"
+  );
   const completedOrders = filteredOrders
     .filter((o) => o.status === "completed")
     .sort((a: RepairOrder, b: RepairOrder) => {
       // Sort by completedAt date if available, otherwise use createdAt
-      const dateA = a.completedAt ? new Date(a.completedAt) : new Date(a.createdAt || 0);
-      const dateB = b.completedAt ? new Date(b.completedAt) : new Date(b.createdAt || 0);
+      const dateA = a.completedAt
+        ? new Date(a.completedAt)
+        : new Date(a.createdAt || 0);
+      const dateB = b.completedAt
+        ? new Date(b.completedAt)
+        : new Date(b.createdAt || 0);
       return dateB.getTime() - dateA.getTime(); // Most recent first
     })
     // Limit to most recent 50 completed orders to prevent UI overload
     .slice(0, 50);
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -93,14 +158,16 @@ const Orders: React.FC = () => {
     }
   };
 
-  const handlePriorityTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handlePriorityTypeChange = (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => {
     const priorityType = e.target.value as "WAIT" | "VALET" | "LOANER";
     const priority = getPriorityFromType(priorityType);
-    
-    setFormData(prev => ({
+
+    setFormData((prev) => ({
       ...prev,
       priorityType,
-      priority // Update both priority and priorityType
+      priority, // Update both priority and priorityType
     }));
   };
 
@@ -116,7 +183,7 @@ const Orders: React.FC = () => {
       // Ensure priority is set based on priorityType
       const dataToSubmit = {
         ...formData,
-        priority: getPriorityFromType(formData.priorityType)
+        priority: getPriorityFromType(formData.priorityType),
       };
 
       const result = await createRepairOrder(dataToSubmit);
@@ -130,9 +197,9 @@ const Orders: React.FC = () => {
           priority: 1,
           priorityType: "WAIT",
           status: "pending",
-          assignedTo: ""
+          assignedTo: "",
         });
-        
+
         // Switch to the pending tab if we just added a pending order
         if (formData.status === "pending") {
           setActiveTab("pending");
@@ -159,25 +226,25 @@ const Orders: React.FC = () => {
       }
     }
   };
-  
+
   // Handle opening the assign modal
   const handleAssignOrder = (id: string) => {
     setCurrentOrderId(id);
     setAssignmentInput("");
     setIsAssignModalOpen(true);
   };
-  
+
   // Handle submitting the assignment
   const handleAssignSubmit = async () => {
     if (!assignmentInput.trim()) {
       toast.error("❌ Please enter a name to assign this order to.");
       return;
     }
-    
+
     try {
       const updates = { assignedTo: assignmentInput.trim() };
       const result = await updateRepairOrder(currentOrderId, updates);
-      
+
       if (result) {
         toast.success(`✅ Order assigned to ${assignmentInput.trim()}!`);
         setIsAssignModalOpen(false);
@@ -193,36 +260,43 @@ const Orders: React.FC = () => {
   const formatDate = (dateString?: string) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
-    return `${date.toLocaleDateString('en-US', { month: 'short', day: '2-digit' })}, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+    return `${date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "2-digit",
+    })}, ${date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    })}`;
   };
 
   // Calculate wait time
   const getWaitTime = (createdAt?: string) => {
     if (!createdAt) return null;
-    
+
     const created = new Date(createdAt);
     const now = new Date();
     const diffMinutes = Math.floor((now.getTime() - created.getTime()) / 60000);
-    
+
     // Format based on wait time duration
-    let display = '';
-    let color = '';
+    let display = "";
+    let color = "";
     let showAlert = false;
-    
+
     if (diffMinutes < 15) {
       display = `${diffMinutes}m`;
-      color = 'text-orange-500';
+      color = "text-orange-500";
       showAlert = false;
     } else if (diffMinutes < 30) {
       display = `${diffMinutes}m`;
-      color = 'text-red-500';
+      color = "text-red-500";
       showAlert = true;
     } else {
       display = `${diffMinutes}m`;
-      color = 'text-red-600 font-bold';
+      color = "text-red-600 font-bold";
       showAlert = true;
     }
-    
+
     return { display, color, showAlert };
   };
 
@@ -261,27 +335,27 @@ const Orders: React.FC = () => {
 
   // Tab configuration
   const tabs = [
-    { 
-      id: "pending", 
-      label: "Pending", 
-      count: pendingOrders.length, 
+    {
+      id: "pending",
+      label: "Pending",
+      count: pendingOrders.length,
       icon: <Clock className="w-5 h-5" />,
-      color: "yellow"
+      color: "yellow",
     },
-    { 
-      id: "in_progress", 
-      label: "In Progress", 
-      count: inProgressOrders.length, 
+    {
+      id: "in_progress",
+      label: "In Progress",
+      count: inProgressOrders.length,
       icon: <Settings className="w-5 h-5" />,
-      color: "blue" 
+      color: "blue",
     },
-    { 
-      id: "completed", 
-      label: "Completed", 
-      count: completedOrders.length, 
+    {
+      id: "completed",
+      label: "Completed",
+      count: completedOrders.length,
       icon: <CheckCircle className="w-5 h-5" />,
-      color: "green" 
-    }
+      color: "green",
+    },
   ];
 
   // Get orders for the active tab
@@ -330,7 +404,13 @@ const Orders: React.FC = () => {
             onClick={() => setShowForm(!showForm)}
             className="px-3 py-1.5 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 shadow-sm flex items-center gap-1 transition-colors duration-200 text-sm"
           >
-            {showForm ? "Cancel" : (<><Plus className="w-4 h-4" /> New Order</>)}
+            {showForm ? (
+              "Cancel"
+            ) : (
+              <>
+                <Plus className="w-4 h-4" /> New Order
+              </>
+            )}
           </button>
         </div>
 
@@ -431,15 +511,23 @@ const Orders: React.FC = () => {
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
-                <span className={`mr-2 ${activeTab === tab.id ? `text-${tab.color}-500` : "text-gray-400"}`}>
+                <span
+                  className={`mr-2 ${
+                    activeTab === tab.id
+                      ? `text-${tab.color}-500`
+                      : "text-gray-400"
+                  }`}
+                >
                   {tab.icon}
                 </span>
                 {tab.label}
-                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                  activeTab === tab.id 
-                    ? `bg-${tab.color}-100 text-${tab.color}-600` 
-                    : "bg-gray-100 text-gray-600"
-                }`}>
+                <span
+                  className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                    activeTab === tab.id
+                      ? `bg-${tab.color}-100 text-${tab.color}-600`
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
                   {tab.count}
                 </span>
               </button>
@@ -455,28 +543,48 @@ const Orders: React.FC = () => {
             <div className="text-center py-6 text-red-600">{error}</div>
           ) : getActiveOrders().length === 0 ? (
             <div className="text-center py-6">
-              <p className="text-gray-500">No {activeTab.replace("_", " ")} orders found.</p>
+              <p className="text-gray-500">
+                No {activeTab.replace("_", " ")} orders found.
+              </p>
             </div>
           ) : (
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Order ID
                   </th>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Status
                   </th>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Submitted
                   </th>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Wait Time
                   </th>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Assigned To
                   </th>
-                  <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Actions
                   </th>
                 </tr>
@@ -487,7 +595,8 @@ const Orders: React.FC = () => {
                   return (
                     <tr key={order.id} className={getRowBgColor(order.status)}>
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {order.description || (order.id ? `#${order.id.substring(0, 6)}` : 'N/A')}
+                        {order.description ||
+                          (order.id ? `#${order.id.substring(0, 6)}` : "N/A")}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {getStatusBadge(order.status)}
@@ -497,7 +606,9 @@ const Orders: React.FC = () => {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {waitTime && (
-                          <div className={`flex items-center gap-1 ${waitTime.color}`}>
+                          <div
+                            className={`flex items-center gap-1 ${waitTime.color}`}
+                          >
                             {waitTime.showAlert ? (
                               <AlertTriangle className="w-4 h-4" />
                             ) : (
@@ -509,13 +620,26 @@ const Orders: React.FC = () => {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                         {order.assignedTo ? (
-                          <span className="text-gray-700 text-sm">
-                            {order.assignedTo}
-                          </span>
+                          <>
+                            {console.log("Assigned To:", order.assignedTo)}{" "}
+                            {/* ✅ Log assignedTo ID */}
+                            {console.log(
+                              "Technician Names:",
+                              technicianNames
+                            )}{" "}
+                            {/* ✅ Log all fetched names */}
+                            <span className="text-gray-700 text-sm">
+                              {technicianNames[order.assignedTo] ||
+                                "Unknown Technician"}
+                            </span>
+                          </>
                         ) : (
-                          <span className="text-gray-400 text-sm">Unassigned</span>
+                          <span className="text-gray-400 text-sm">
+                            Unassigned
+                          </span>
                         )}
                       </td>
+
                       <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end gap-2">
                           <button
@@ -542,7 +666,7 @@ const Orders: React.FC = () => {
           )}
         </div>
       </div>
-      
+
       {/* Assignment Modal */}
       {isAssignModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -551,9 +675,12 @@ const Orders: React.FC = () => {
               <Tag className="w-5 h-5 text-blue-500" />
               Assign Repair Order
             </h3>
-            
+
             <div className="mb-4">
-              <label htmlFor="assignTo" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="assignTo"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Assign to
               </label>
               <input
@@ -565,7 +692,7 @@ const Orders: React.FC = () => {
                 className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
               />
             </div>
-            
+
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setIsAssignModalOpen(false)}
