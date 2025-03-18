@@ -1,7 +1,8 @@
-// Add this component to your AdminHome.jsx file
+// Updated ActiveRepairOrdersTable component with difficulty level support
 
 import React, { useState, useEffect } from "react";
-import { Clock, AlertTriangle, CheckCircle, ArrowRightCircle } from "lucide-react";
+import { Clock, AlertTriangle, CheckCircle, ArrowRightCircle, BarChart2 } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
 
 // Helper function to format date
 const formatDate = (dateString) => {
@@ -21,14 +22,44 @@ const getMinutesElapsed = (dateString) => {
   return Math.floor((now - created) / (1000 * 60));
 };
 
-const ActiveRepairOrdersTable = ({ repairOrders }) => {
+const ActiveRepairOrdersTable = ({ repairOrders, currentUser }) => {
   const [orders, setOrders] = useState([]);
+  const [technicians, setTechnicians] = useState([]);
+  
+  // Fetch technicians to get skill levels
+  useEffect(() => {
+    const fetchTechnicians = async () => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("role", "technician");
+      
+      if (error) {
+        console.error("Error fetching technicians:", error);
+      } else if (data) {
+        setTechnicians(data);
+      }
+    };
+    
+    fetchTechnicians();
+  }, []);
   
   // Update orders every minute to refresh the urgency indicators
   useEffect(() => {
     // Process orders and add urgency flag
     const processOrders = () => {
-      const processedOrders = repairOrders
+      // Filter based on current user's skill level if they are a technician
+      let filteredOrders = [...repairOrders];
+      
+      if (currentUser && currentUser.role === 'technician') {
+        const userSkillLevel = currentUser.skill_level || 1;
+        // Technicians can only see orders with difficulty level <= their skill level
+        filteredOrders = repairOrders.filter(order => 
+          (order.difficulty_level || 1) <= userSkillLevel
+        );
+      }
+      
+      const processedOrders = filteredOrders
         .filter(order => order.status !== 'completed') // Only show non-completed orders
         .map(order => {
           const minutesElapsed = getMinutesElapsed(order.createdAt);
@@ -57,7 +88,7 @@ const ActiveRepairOrdersTable = ({ repairOrders }) => {
     
     // Cleanup interval on unmount
     return () => clearInterval(interval);
-  }, [repairOrders]);
+  }, [repairOrders, currentUser]);
   
   // CSS for blinking effect
   const blinkingStyle = `
@@ -94,6 +125,24 @@ const ActiveRepairOrdersTable = ({ repairOrders }) => {
     }
   };
   
+  // Difficulty level badge
+  const DifficultyBadge = ({ level }) => {
+    const difficultyLevel = level || 1;
+    let bgColor = "bg-green-100 text-green-800";
+    
+    if (difficultyLevel === 2) {
+      bgColor = "bg-yellow-100 text-yellow-800";
+    } else if (difficultyLevel === 3) {
+      bgColor = "bg-red-100 text-red-800";
+    }
+    
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor}`}>
+        <BarChart2 className="w-3 h-3 mr-1" /> Level {difficultyLevel}
+      </span>
+    );
+  };
+  
   // Urgency indicator component
   const UrgencyIndicator = ({ minutes }) => {
     if (minutes >= 30) {
@@ -121,7 +170,9 @@ const ActiveRepairOrdersTable = ({ repairOrders }) => {
       </div>
       <h3 className="text-lg font-medium text-gray-900">No active repair orders</h3>
       <p className="mt-1 text-sm text-gray-500">
-        All pending repair orders will appear here.
+        {currentUser && currentUser.role === 'technician'
+          ? `All pending repair orders matching your skill level (Level ${currentUser.skill_level || 1}) will appear here.`
+          : 'All pending repair orders will appear here.'}
       </p>
     </div>
   );
@@ -135,6 +186,11 @@ const ActiveRepairOrdersTable = ({ repairOrders }) => {
           <h2 className="text-lg font-bold flex items-center">
             <AlertTriangle className="h-5 w-5 mr-2 text-red-600" />
             Active Repair Orders
+            {currentUser && currentUser.role === 'technician' && (
+              <span className="ml-2 text-sm font-normal text-gray-500">
+                (Your skill level: Level {currentUser.skill_level || 1})
+              </span>
+            )}
           </h2>
           <span className="text-sm text-gray-500">
             {orders.filter(o => o.status === 'pending').length} pending &bull; {orders.filter(o => o.status === 'in_progress').length} in progress
@@ -156,6 +212,9 @@ const ActiveRepairOrdersTable = ({ repairOrders }) => {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Difficulty
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Submitted
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -174,6 +233,9 @@ const ActiveRepairOrdersTable = ({ repairOrders }) => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <StatusBadge status={order.status} />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <DifficultyBadge level={order.difficulty_level} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDate(order.createdAt)}

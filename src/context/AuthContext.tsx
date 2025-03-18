@@ -1,5 +1,5 @@
 "use client"; // ✅ Ensure this runs on the client-side
-
+//authcontext.tsx
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 

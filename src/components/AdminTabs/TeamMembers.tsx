@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search } from "lucide-react";
+import { Search, Edit, BarChart2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "react-toastify";
 
@@ -10,6 +10,7 @@ interface TeamMember {
   name: string;
   role: "admin" | "technician";
   created_at?: string;
+  skill_level?: number;
 }
 
 const TeamMembers: React.FC = () => {
@@ -17,31 +18,35 @@ const TeamMembers: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModal2Open, setIsModal2Open] = useState(false);
+  const [isSkillModalOpen, setIsSkillModalOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const [selectedTechnician, setSelectedTechnician] = useState<TeamMember | null>(null);
+  const [skillLevel, setSkillLevel] = useState<number>(1);
 
   useEffect(() => {
-    const fetchMembers = async () => {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("Error fetching team members:", error);
-        return;
-      }
-
-      if (data) {
-        setMembers(data);
-      }
-    };
-
     fetchMembers();
   }, []);
 
+  const fetchMembers = async () => {
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching team members:", error);
+      return;
+    }
+
+    if (data) {
+      console.log("Fetched members:", data);
+      setMembers(data);
+    }
+  };
+
   const filteredMembers = members.filter(
     (m) =>
-      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -55,6 +60,7 @@ const TeamMembers: React.FC = () => {
   const handleAddTechnician = () => {
     setIsModal2Open(true);
   };
+
   const handleSendEmail = async (role: "admin" | "technician") => {
     console.log("Starting invite process with role:", role, "and email:", email);
     
@@ -93,7 +99,8 @@ const TeamMembers: React.FC = () => {
       }
       
       // ✅ Generate invite link with dealership ID and role
-      const inviteUrl = `${window.location.origin}/signuppage?email=${encodeURIComponent(email)}&dealership_id=${adminData.dealership_id}&role=${role}`;      console.log("Generated invite URL:", inviteUrl);
+      const inviteUrl = `${window.location.origin}/signuppage?email=${encodeURIComponent(email)}&dealership_id=${adminData.dealership_id}&role=${role}`;
+      console.log("Generated invite URL:", inviteUrl);
       
       // ✅ Send email with the invite link
       console.log("Sending email with payload:", { email, inviteUrl });
@@ -115,32 +122,72 @@ const TeamMembers: React.FC = () => {
     }
   };
 
-  const handleSendEmail2 = async () => {
-    if (!email) {
-      toast.error("❌ Please enter an email address.");
-      return;
-    }
+  // Function to open skill level modal
+  const handleEditSkillLevel = (technician: TeamMember) => {
+    setSelectedTechnician(technician);
+    setSkillLevel(technician.skill_level || 1);
+    setIsSkillModalOpen(true);
+  };
+
+  // Function to update skill level
+  const handleUpdateSkillLevel = async () => {
+    if (!selectedTechnician) return;
 
     try {
-      const response = await fetch("/api/send-email2", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
+      const { error } = await supabase
+        .from("users")
+        .update({ skill_level: skillLevel })
+        .eq("id", selectedTechnician.id);
 
-      const result = await response.json();
-      if (response.ok) {
-        toast.success("✅ Email sent successfully!");
-      } else {
-        toast.error("❌ Error sending email: " + result.error);
+      if (error) {
+        console.error("Error updating skill level:", error);
+        toast.error("❌ Failed to update skill level");
+        return;
       }
-    } catch (error) {
-      toast.error("❌ Network error: " + error);
-    }
 
-    setIsModalOpen(false);
-    setIsModal2Open(false);
-    setEmail("");
+      // Update local state
+      setMembers(
+        members.map((member) =>
+          member.id === selectedTechnician.id
+            ? { ...member, skill_level: skillLevel }
+            : member
+        )
+      );
+
+      toast.success("✅ Technician skill level updated!");
+      setIsSkillModalOpen(false);
+    } catch (error) {
+      console.error("Error updating skill level:", error);
+      toast.error("❌ An error occurred while updating skill level");
+    }
+  };
+
+  // Helper function to get skill level badge color
+  const getSkillLevelColor = (level?: number) => {
+    switch (level) {
+      case 1:
+        return "bg-green-100 text-green-800";
+      case 2:
+        return "bg-yellow-100 text-yellow-800";
+      case 3:
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  // Helper function to get skill level label
+  const getSkillLevelLabel = (level?: number) => {
+    switch (level) {
+      case 1:
+        return "Basic";
+      case 2:
+        return "Intermediate";
+      case 3:
+        return "Advanced";
+      default:
+        return "Basic";
+    }
   };
 
   return (
@@ -251,12 +298,27 @@ const TeamMembers: React.FC = () => {
                     <p className="text-sm text-gray-500">{tech.email}</p>
                   </div>
                 </div>
-                <span
-                  className="px-2 py-1 text-xs font-semibold text-blue-800 
-                             bg-blue-100 rounded-full"
-                >
-                  Technician
-                </span>
+                <div className="flex items-center space-x-3">
+                  {/* Skill Level Badge */}
+                  <div className={`flex items-center px-2 py-1 text-xs font-medium rounded-full ${getSkillLevelColor(tech.skill_level)}`}>
+                    <BarChart2 className="w-3 h-3 mr-1" />
+                    Level {tech.skill_level || 1} ({getSkillLevelLabel(tech.skill_level)})
+                  </div>
+                  
+                  {/* Edit Button */}
+                  <button
+                    onClick={() => handleEditSkillLevel(tech)}
+                    className="p-1 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-gray-100"
+                    aria-label="Edit skill level"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  
+                  {/* Role Badge */}
+                  <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full">
+                    Technician
+                  </span>
+                </div>
               </div>
             ))}
           </div>
@@ -265,9 +327,25 @@ const TeamMembers: React.FC = () => {
         )}
       </div>
 
+      {/* Skill Level Information */}
+      <div className="mt-8 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-md">
+        <h3 className="text-md font-semibold text-blue-900 flex items-center">
+          <BarChart2 className="w-5 h-5 mr-2" />
+          Technician Skill Levels
+        </h3>
+        <p className="mt-1 text-sm text-blue-800">
+          Technicians can only work on repair orders that match or are below their skill level:
+        </p>
+        <ul className="mt-2 ml-6 list-disc text-sm text-blue-800">
+          <li>Level 1 (Basic): Can only work on Level 1 repair orders</li>
+          <li>Level 2 (Intermediate): Can work on Level 1 and 2 repair orders</li>
+          <li>Level 3 (Advanced): Can work on all repair orders (Levels 1, 2, and 3)</li>
+        </ul>
+      </div>
+
       {/* Modal for Adding Admin */}
       {isModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center ">
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
             <h2 className="text-lg font-bold text-white mb-4 text-center">
               Enter Admin Email
@@ -303,7 +381,7 @@ const TeamMembers: React.FC = () => {
 
       {/* Modal for Adding Technician */}
       {isModal2Open && (
-        <div className="fixed inset-0 flex items-center justify-center ">
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
             <h2 className="text-lg font-bold text-white mb-4 text-center">
               Enter Technician Email
@@ -331,6 +409,51 @@ const TeamMembers: React.FC = () => {
           focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 Send Email
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for Editing Skill Level */}
+      {isSkillModalOpen && selectedTechnician && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
+            <h2 className="text-lg font-bold text-white mb-4 text-center">
+              Edit Technician Skill Level
+            </h2>
+            <div className="mb-4">
+              <p className="text-white text-sm mb-2">
+                Technician: <span className="font-medium">{selectedTechnician.name}</span>
+              </p>
+              <label className="block text-white text-sm mb-2">
+                Skill Level:
+              </label>
+              <select
+                value={skillLevel}
+                onChange={(e) => setSkillLevel(parseInt(e.target.value))}
+                className="w-full p-2 border border-gray-600 bg-[#374151] text-white rounded-md
+                focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value={1}>Level 1 - Basic</option>
+                <option value={2}>Level 2 - Intermediate</option>
+                <option value={3}>Level 3 - Advanced</option>
+              </select>
+            </div>
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => setIsSkillModalOpen(false)}
+                className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 
+                focus:outline-none focus:ring-2 focus:ring-gray-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateSkillLevel}
+                className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 
+                focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                Save
               </button>
             </div>
           </div>

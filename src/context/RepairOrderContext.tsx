@@ -21,6 +21,12 @@ const toSnakeCase = (obj: any): any => {
   
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      // Special case for difficulty_level - keep as is
+      if (key === 'difficulty_level') {
+        snakeObj.difficulty_level = obj[key];
+        continue;
+      }
+      
       // Convert camelCase to snake_case
       const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
       snakeObj[snakeKey] = obj[key];
@@ -36,6 +42,12 @@ const toCamelCase = (obj: any): any => {
   
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      // Special case for difficulty_level - keep as is
+      if (key === 'difficulty_level') {
+        camelObj.difficulty_level = obj[key];
+        continue;
+      }
+      
       // Convert snake_case to camelCase
       const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
       camelObj[camelKey] = obj[key];
@@ -59,7 +71,7 @@ type RepairOrderContextType = {
   createRepairOrder: (data: Omit<RepairOrder, 'id' | 'createdAt'>) => Promise<RepairOrder | null>;
   updateRepairOrder: (id: string, updates: Partial<RepairOrder>) => Promise<RepairOrder | null>;
   deleteRepairOrder: (id: string) => Promise<boolean>;
-  assignRepairOrder: (repairOrderId: string, technicianId: string) => Promise<RepairOrderAssignment | null>;
+  assignRepairOrder: (repairOrderId: string, technicianId: string) => Promise<boolean>;
   completeRepairOrder: (repairOrderId: string) => Promise<boolean>;
   getRepairOrdersByStatus: (status: RepairOrder['status']) => Promise<RepairOrder[]>;
   getRepairOrdersByTechnician: (technicianId: string) => Promise<RepairOrder[]>;
@@ -111,9 +123,17 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
         throw new Error(error.message);
       }
       
+      // Print first record for debugging
+      if (data && data.length > 0) {
+        console.log("First record from database:", data[0]);
+      }
+      
       // Convert snake_case from DB to camelCase for our interface
       const camelCaseData = data ? data.map(item => {
         const camelItem = toCamelCase(item);
+        
+        // Explicitly preserve difficulty_level
+        camelItem.difficulty_level = item.difficulty_level !== null ? item.difficulty_level : 1;
         
         // Ensure technician_id is properly mapped to assignedTo
         if (item.assigned_to) {
@@ -187,7 +207,14 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
         throw new Error(error.message);
       }
       
-      return data ? toCamelCase(data) : null;
+      const camelCaseOrder = data ? toCamelCase(data) : null;
+      
+      // Explicitly preserve difficulty_level
+      if (camelCaseOrder && data) {
+        camelCaseOrder.difficulty_level = data.difficulty_level !== null ? data.difficulty_level : 1;
+      }
+      
+      return camelCaseOrder;
     } catch (err) {
       console.error(`Error fetching repair order ${id}:`, err);
       setError(`Failed to fetch repair order ${id}`);
@@ -201,14 +228,15 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
       // Convert our camelCase data to snake_case for the database
       const dbData = {
         description: data.description,
-        order_description: data.orderDescription,  // Use snake_case
+        order_description: data.orderDescription,
         priority: data.priority || 1,
-        priority_type: data.priorityType,         // Use snake_case
+        priority_type: data.priorityType,
         status: data.status || 'pending',
+        difficulty_level: data.difficulty_level || 1, // Explicitly include difficulty_level
         // Add other fields as needed
       };
       
-      console.log("Sending to database:", dbData);
+      console.log("Creating repair order with data:", dbData);
       
       const { data: newOrder, error } = await supabase
         .from('repair_orders')
@@ -224,6 +252,12 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
       if (newOrder) {
         // Convert snake_case back to camelCase
         const camelCaseOrder = toCamelCase(newOrder);
+        
+        // Ensure difficulty_level is preserved
+        camelCaseOrder.difficulty_level = newOrder.difficulty_level;
+        
+        console.log("Created order with difficulty:", camelCaseOrder.difficulty_level);
+        
         setRepairOrders(prev => [camelCaseOrder, ...prev]);
         return camelCaseOrder;
       }
@@ -242,6 +276,13 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
       // Convert camelCase to snake_case for the database
       const snakeCaseUpdates = toSnakeCase(updates);
       
+      // Explicitly preserve difficulty_level if it exists in updates
+      if (updates.difficulty_level !== undefined) {
+        snakeCaseUpdates.difficulty_level = updates.difficulty_level;
+      }
+      
+      console.log("Updating order with data:", snakeCaseUpdates);
+      
       const { data: updatedOrder, error } = await supabase
         .from('repair_orders')
         .update({
@@ -259,6 +300,10 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
       if (updatedOrder) {
         // Convert snake_case back to camelCase
         const camelCaseOrder = toCamelCase(updatedOrder);
+        
+        // Explicitly preserve difficulty_level
+        camelCaseOrder.difficulty_level = updatedOrder.difficulty_level;
+        
         setRepairOrders(prev => 
           prev.map(order => order.id === id ? camelCaseOrder : order)
         );
@@ -335,10 +380,6 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
       return false;
     }
   };
-  
-  
-  
-  
 
   // Complete a repair order
   const completeRepairOrder = async (repairOrderId: string): Promise<boolean> => {
@@ -380,7 +421,14 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
       
       // Convert snake_case from DB to camelCase for our interface
-      return data ? data.map(toCamelCase) : [];
+      const camelCaseData = data ? data.map(item => {
+        const camelItem = toCamelCase(item);
+        // Preserve difficulty_level
+        camelItem.difficulty_level = item.difficulty_level !== null ? item.difficulty_level : 1;
+        return camelItem;
+      }) : [];
+      
+      return camelCaseData;
     } catch (err) {
       console.error(`Error fetching repair orders with status ${status}:`, err);
       setError(`Failed to fetch repair orders with status ${status}`);
@@ -400,13 +448,20 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
         throw new Error(error.message);
       }
   
-      return data ? data.map(toCamelCase) : [];
+      // Convert snake_case from DB to camelCase for our interface
+      const camelCaseData = data ? data.map(item => {
+        const camelItem = toCamelCase(item);
+        // Preserve difficulty_level
+        camelItem.difficulty_level = item.difficulty_level !== null ? item.difficulty_level : 1;
+        return camelItem;
+      }) : [];
+      
+      return camelCaseData;
     } catch (err) {
       console.error(`Error fetching repair orders for technician ${technicianId}:`, err);
       return [];
     }
   };
-  
 
   // Update priority - for QueueManagement
   const updatePriority = async (orderId: string, newPriority: number): Promise<boolean> => {
@@ -563,57 +618,72 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
     return activeOrderCount < maxAllowedOrders && pendingOrders.length > 0;
   };
 
-  // Get the next repair order for a technician
-  const getNextRepairOrder = async (technicianId: string): Promise<boolean> => {
-    try {
-      console.log(`🔍 Checking for next repair order for technician: ${technicianId}`);
-  
-      // Check if technician can receive a new order
-      if (!canRequestNewOrder(technicianId)) {
-        console.warn(`⚠️ Technician ${technicianId} cannot request a new order (max orders or no pending orders).`);
-        return false;
-      }
-  
-      // Fetch the next pending order
-      const { data: pendingOrders, error } = await supabase
-        .from("repair_orders")
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: true })
-        .limit(1);
-  
-      if (error) {
-        console.error("❌ Error fetching pending orders:", error);
-        return false;
-      }
-  
-      if (!pendingOrders || pendingOrders.length === 0) {
-        console.warn("⚠️ No pending repair orders found.");
-        return false;
-      }
-  
-      const nextOrder = pendingOrders[0];
-      console.log("✅ Found order to assign:", nextOrder.id);
-  
-      // Attempt to assign the order to the technician
-      const result = await assignRepairOrder(nextOrder.id, technicianId);
-  
-      if (result) {
-        console.log("🎉 Successfully assigned order!");
-        await refreshOrders(); // Refresh UI
-        return true;
-      } else {
-        console.error("❌ Failed to assign order!");
-        return false;
-      }
-    } catch (err) {
-      console.error("❌ Error in getNextRepairOrder:", err);
+// Updated getNextRepairOrder function that respects skill levels
+const getNextRepairOrder = async (technicianId: string): Promise<boolean> => {
+  try {
+    console.log(`🔍 Checking for next repair order for technician: ${technicianId}`);
+
+    // Check if technician can receive a new order
+    if (!canRequestNewOrder(technicianId)) {
+      console.warn(`⚠️ Technician ${technicianId} cannot request a new order (max orders or no pending orders).`);
       return false;
     }
-  };
-  
-  
 
+    // Get the technician's skill level
+    const { data: techData, error: techError } = await supabase
+      .from("users")
+      .select("skill_level")
+      .eq("auth_id", technicianId)
+      .single();
+
+    if (techError) {
+      console.error("❌ Error fetching technician skill level:", techError);
+      return false;
+    }
+
+    const techSkillLevel = techData?.skill_level || 1; // Default to level 1 if not set
+    console.log(`🧠 Technician skill level: ${techSkillLevel}`);
+
+    // Fetch pending orders that match the technician's skill level or lower
+    // Order by priority first (lowest priority value = highest priority), then by creation date (oldest first)
+    const { data: matchingOrders, error } = await supabase
+      .from("repair_orders")
+      .select("*")
+      .eq("status", "pending")
+      .lte("difficulty_level", techSkillLevel) // Only orders with difficulty <= tech skill
+      .order("priority", { ascending: true }) // Highest priority first (WAIT=1, VALET=2, LOANER=3)
+      .order("created_at", { ascending: true }); // Oldest first
+
+    if (error) {
+      console.error("❌ Error fetching matching orders:", error);
+      return false;
+    }
+
+    if (!matchingOrders || matchingOrders.length === 0) {
+      console.warn(`⚠️ No pending repair orders found matching technician skill level ${techSkillLevel}.`);
+      return false;
+    }
+
+    // Get the first order that matches (highest priority, oldest)
+    const nextOrder = matchingOrders[0];
+    console.log(`✅ Found order to assign: ${nextOrder.id} (Priority: ${nextOrder.priority}, Difficulty: ${nextOrder.difficulty_level})`);
+
+    // Attempt to assign the order to the technician
+    const result = await assignRepairOrder(nextOrder.id, technicianId);
+
+    if (result) {
+      console.log("🎉 Successfully assigned order!");
+      await refreshOrders(); // Refresh UI
+      return true;
+    } else {
+      console.error("❌ Failed to assign order!");
+      return false;
+    }
+  } catch (err) {
+    console.error("❌ Error in getNextRepairOrder:", err);
+    return false;
+  }
+};
   // Context value
   const value = {
     repairOrders,

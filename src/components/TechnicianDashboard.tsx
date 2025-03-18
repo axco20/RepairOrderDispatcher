@@ -11,6 +11,8 @@ import OnHoldOrders from "@/components/TechnicianTabs/OnHoldOrders";
 import Help from "@/components/TechnicianTabs/Help";
 import { toast } from "react-toastify";
 import { useRealTimeOrders } from "@/lib/useRealTimeOrders";
+import { BarChart2 } from "lucide-react"; 
+import { supabase } from "@/lib/supabaseClient";
 
 export default function TechnicianDashboard() {
   const { currentUser, logout } = useAuth();
@@ -25,10 +27,53 @@ export default function TechnicianDashboard() {
   } = useRepairOrders();
 
   useRealTimeOrders(refreshOrders); 
-
   
   const [activePage, setActivePage] = useState<"Home" | "ActiveOrders"| "OnHoldOrders" | "CompletedOrders" | "Help">("Home");
   const [isAssigningOrder, setIsAssigningOrder] = useState(false);
+  const [techSkillLevel, setTechSkillLevel] = useState<number>(1);
+  const [availableOrdersCount, setAvailableOrdersCount] = useState<number>(0);
+
+  // Fetch technician skill level and count available orders
+  useEffect(() => {
+    const fetchTechDetails = async () => {
+      if (!currentUser) return;
+      
+      try {
+        // Get technician skill level
+        const { data, error } = await supabase
+          .from("users")
+          .select("skill_level")
+          .eq("auth_id", currentUser.id)
+          .single();
+        
+        if (error) {
+          console.error("Error fetching technician skill level:", error);
+          return;
+        }
+        
+        const skillLevel = data?.skill_level || 1;
+        setTechSkillLevel(skillLevel);
+        
+        // Get count of orders available for this technician's skill level
+        const { data: matchingOrders, error: countError } = await supabase
+          .from("repair_orders")
+          .select("id")
+          .eq("status", "pending")
+          .lte("difficulty_level", skillLevel);
+          
+        if (countError) {
+          console.error("Error counting available orders:", countError);
+          return;
+        }
+        
+        setAvailableOrdersCount(matchingOrders?.length || 0);
+      } catch (err) {
+        console.error("Error in fetchTechDetails:", err);
+      }
+    };
+
+    fetchTechDetails();
+  }, [currentUser, pendingOrders]);
 
   // FIX: Only run once on mount instead of on every render
   useEffect(() => {
@@ -68,6 +113,8 @@ export default function TechnicianDashboard() {
           toast.info("No pending orders available in the queue");
         } else if (activeOrderCount >= 5) {
           toast.info("You already have the maximum number of active orders");
+        } else if (availableOrdersCount === 0) {
+          toast.info(`No orders matching your skill level (Level ${techSkillLevel}) are currently available`);
         } else {
           toast.error("Failed to assign new repair order");
         }
@@ -78,6 +125,16 @@ export default function TechnicianDashboard() {
       toast.error("An error occurred while getting the next order");
     } finally {
       setIsAssigningOrder(false);
+    }
+  };
+
+  // Helper function to get skill level label
+  const getSkillLevelLabel = (level: number) => {
+    switch (level) {
+      case 1: return "Basic";
+      case 2: return "Intermediate";
+      case 3: return "Advanced";
+      default: return "Basic";
     }
   };
 
@@ -92,13 +149,26 @@ export default function TechnicianDashboard() {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Add Skill Level Indicator at the top */}
+        <div className="bg-blue-50 px-6 py-2 border-b border-blue-100 flex items-center justify-between">
+          <div className="flex items-center">
+            <BarChart2 className="h-5 w-5 mr-2 text-blue-600" />
+            <span className="text-sm font-medium text-blue-800">
+              Your Skill Level: Level {techSkillLevel} ({getSkillLevelLabel(techSkillLevel)})
+            </span>
+          </div>
+          <div className="text-sm text-blue-800">
+            {availableOrdersCount} order{availableOrdersCount !== 1 ? 's' : ''} available at your skill level
+          </div>
+        </div>
+        
         <main className="flex-1 overflow-y-auto p-6 bg-gray-100">
           {/* Dashboard content without header */}
           {activePage === "Home" && (
             <Home 
               activeOrderCount={activeOrderCount}
               canGetNewOrder={canGetNewOrder}
-              pendingOrdersCount={pendingOrders.length}
+              pendingOrdersCount={availableOrdersCount}
               getNextRepairOrder={handleGetNextRepairOrder}
               isLoading={isAssigningOrder}
             />

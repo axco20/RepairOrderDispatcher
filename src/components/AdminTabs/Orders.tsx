@@ -11,6 +11,7 @@ import {
   Settings,
   CheckCircle,
   AlertTriangle,
+  BarChart2,
 } from "lucide-react";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { toast } from "react-toastify";
@@ -24,11 +25,13 @@ interface Technician {
   name: string;
   email: string;
   role: string;
+  skill_level: number; // Added skill level
 }
 
 interface TechnicianOption {
   value: string;
   label: string;
+  skill_level: number; // Added skill level
 }
 
 interface RepairOrder {
@@ -38,6 +41,7 @@ interface RepairOrder {
   status: "pending" | "in_progress" | "completed";
   priority?: number;
   priorityType?: string;
+  difficulty_level?: number; // Added difficulty level
   createdAt?: string;
   completedAt?: string;
   assignedTo?: string;
@@ -64,6 +68,7 @@ const Orders: React.FC = () => {
     orderDescription: "",
     priority: 1, // Keeping for backend compatibility
     priorityType: "WAIT" as "WAIT" | "VALET" | "LOANER",
+    difficulty_level: 1, // Default difficulty level
     status: "pending" as "pending" | "in_progress" | "completed",
     assignedTo: "",
   });
@@ -105,7 +110,8 @@ const Orders: React.FC = () => {
   const technicianOptions = useMemo(() => {
     return technicians.map((tech) => ({
       value: tech.auth_id,
-      label: `${tech.name} (${technicianActiveOrderCount(tech.auth_id)} active)`,
+      label: `${tech.name} (Level ${tech.skill_level}, ${technicianActiveOrderCount(tech.auth_id)} active)`,
+      skill_level: tech.skill_level,
     }));
   }, [technicians, repairOrders]);
 
@@ -123,7 +129,7 @@ const Orders: React.FC = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "priority" ? parseInt(value) : value,
+      [name]: name === "priority" || name === "difficulty_level" ? parseInt(value) : value,
     }));
   };
 
@@ -172,6 +178,7 @@ const Orders: React.FC = () => {
         orderDescription: "",
         priority: 1,
         priorityType: "WAIT",
+        difficulty_level: 1,
         status: "pending",
         assignedTo: "",
       });
@@ -196,7 +203,7 @@ const Orders: React.FC = () => {
   };
 
   // Open the assign modal and clear any previous selection
-  const handleAssignOrder = (id: string) => {
+  const handleAssignOrder = (id: string, difficulty_level: number = 1) => {
     setCurrentOrderId(id);
     setSelectedTechnicianOption(null);
     setIsAssignModalOpen(true);
@@ -208,6 +215,20 @@ const Orders: React.FC = () => {
       toast.error("❌ Please select a technician to assign this order to.");
       return;
     }
+
+    // Find the current order to check difficulty level
+    const currentOrder = repairOrders.find(order => order.id === currentOrderId);
+    if (!currentOrder) {
+      toast.error("❌ Order not found.");
+      return;
+    }
+
+    // Check if technician's skill level is sufficient for the order's difficulty
+    if ((selectedTechnicianOption.skill_level || 1) < (currentOrder.difficulty_level || 1)) {
+      toast.error(`❌ This technician (Level ${selectedTechnicianOption.skill_level}) doesn't have the required skill level (Level ${currentOrder.difficulty_level}) for this order.`);
+      return;
+    }
+
     try {
       const updates = { assignedTo: selectedTechnicianOption.value, status: "in_progress" };
       const result = await updateRepairOrder(currentOrderId, updates);
@@ -336,6 +357,16 @@ const Orders: React.FC = () => {
     }),
   };
 
+  // Helper to get badge color for difficulty level
+  const getDifficultyBadgeColor = (level: number) => {
+    switch(level) {
+      case 1: return "bg-green-100 text-green-800";
+      case 2: return "bg-yellow-100 text-yellow-800";
+      case 3: return "bg-red-100 text-red-800";
+      default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
   return (
     <div className="p-4 bg-gray-50 min-h-screen">
       <div className="max-w-6xl mx-auto">
@@ -374,7 +405,7 @@ const Orders: React.FC = () => {
               <Plus className="w-4 h-4 text-indigo-600" /> Create New Repair Order
             </h2>
             <form onSubmit={handleCreateOrder}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Repair Order Number *
@@ -402,6 +433,21 @@ const Orders: React.FC = () => {
                     <option value="WAIT">Wait</option>
                     <option value="VALET">Valet</option>
                     <option value="LOANER">Loaner</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Difficulty Level
+                  </label>
+                  <select
+                    name="difficulty_level"
+                    value={formData.difficulty_level}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  >
+                    <option value={1}>Level 1 (Basic)</option>
+                    <option value={2}>Level 2 (Intermediate)</option>
+                    <option value={3}>Level 3 (Advanced)</option>
                   </select>
                 </div>
               </div>
@@ -486,6 +532,9 @@ const Orders: React.FC = () => {
                     Status
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Difficulty
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Submitted
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -515,6 +564,16 @@ const Orders: React.FC = () => {
                         {order.status.replace("_", " ")}
                       </span>
                     </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span
+                        className={`flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${
+                          getDifficultyBadgeColor(order.difficulty_level || 1)
+                        }`}
+                      >
+                        <BarChart2 className="w-3 h-3" /> 
+                        Level {order.difficulty_level || 1}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                       {formatDate(order.createdAt)}
                     </td>
@@ -524,7 +583,7 @@ const Orders: React.FC = () => {
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => handleAssignOrder(order.id)}
+                          onClick={() => handleAssignOrder(order.id, order.difficulty_level)}
                           className="px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors duration-200 flex items-center gap-1"
                           aria-label="Assign order"
                         >
@@ -569,6 +628,10 @@ const Orders: React.FC = () => {
                 isSearchable
                 styles={customSelectStyles}
               />
+              <p className="mt-2 text-xs text-gray-200">
+                Note: Technicians can only be assigned to repair orders with a difficulty level 
+                equal to or below their skill level.
+              </p>
             </div>
             <div className="flex justify-end gap-2">
               <button

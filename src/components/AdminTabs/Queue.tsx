@@ -11,10 +11,12 @@ import {
   Clock,
   Zap,
   GripVertical,
-  MoveVertical
+  MoveVertical,
+  BarChart2
 } from 'lucide-react';
 import { RepairOrder } from '@/types/repairOrder';
 import { toast } from 'react-toastify';
+import { supabase } from '@/lib/supabaseClient';
 
 // Define the interface for a priority config item
 interface PriorityConfigItem {
@@ -38,6 +40,15 @@ const PRIORITY_CONFIG: PriorityConfigType = {
   3: { label: 'LOANER', color: 'bg-green-100 text-green-800', icon: <Clock className="h-3 w-3 text-green-800" /> }
 };
 
+// Difficulty level config
+const DIFFICULTY_CONFIG: {
+  [key: number]: { label: string; color: string; }
+} = {
+  1: { label: 'Basic', color: 'bg-green-100 text-green-800' },
+  2: { label: 'Intermediate', color: 'bg-yellow-100 text-yellow-800' },
+  3: { label: 'Advanced', color: 'bg-red-100 text-red-800' }
+};
+
 const QueueManagement: React.FC = () => {
   const { 
     repairOrders,
@@ -58,6 +69,8 @@ const QueueManagement: React.FC = () => {
   const [expandedPriorities, setExpandedPriorities] = useState<Record<number, boolean>>({
     1: true, 2: true, 3: true
   });
+  const [isEditingDifficulty, setIsEditingDifficulty] = useState<string | null>(null);
+  const [newDifficultyLevel, setNewDifficultyLevel] = useState<number>(1);
   
   // Load data on component mount
   useEffect(() => {
@@ -288,6 +301,38 @@ const QueueManagement: React.FC = () => {
       toast.error("Error updating order");
     }
   };
+
+  // Start editing difficulty level
+  const handleEditDifficulty = (orderId: string, currentLevel: number = 1) => {
+    setIsEditingDifficulty(orderId);
+    setNewDifficultyLevel(currentLevel);
+  };
+
+  // Save difficulty level changes
+  const handleSaveDifficulty = async (orderId: string) => {
+    try {
+      const { error } = await supabase
+        .from('repair_orders')
+        .update({ 
+          difficulty_level: newDifficultyLevel,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+      
+      if (error) {
+        console.error("Error updating difficulty level:", error);
+        toast.error("Failed to update difficulty level");
+      } else {
+        toast.success(`Updated difficulty level to ${DIFFICULTY_CONFIG[newDifficultyLevel].label}`);
+        await refreshOrders();
+      }
+    } catch (err) {
+      console.error("Error saving difficulty:", err);
+      toast.error("Error updating difficulty level");
+    } finally {
+      setIsEditingDifficulty(null);
+    }
+  };
   
   return (
     <div className="p-6">
@@ -320,6 +365,25 @@ const QueueManagement: React.FC = () => {
             Organize repair orders in the queue by dragging and dropping them. Higher priority orders will be assigned to technicians first.
           </p>
         </div>
+      </div>
+      
+      {/* Skill Level Legend */}
+      <div className="bg-white rounded-lg shadow mb-6 p-4">
+        <h3 className="text-md font-semibold mb-2 flex items-center">
+          <BarChart2 className="mr-2 h-5 w-5 text-indigo-600" />
+          Difficulty Levels
+        </h3>
+        <div className="flex flex-wrap gap-4">
+          {Object.entries(DIFFICULTY_CONFIG).map(([level, config]) => (
+            <div key={level} className="flex items-center">
+              <div className={`w-3 h-3 rounded-full ${config.color} mr-1`}></div>
+              <span className="text-sm">Level {level}: {config.label}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500 mt-2">
+          Technicians can only work on repair orders with difficulty levels equal to or below their skill level.
+        </p>
       </div>
       
       <div className="space-y-6">
@@ -416,9 +480,42 @@ const QueueManagement: React.FC = () => {
                               <div className="font-medium text-gray-900">
                                 {order.description}
                               </div>
-                              <div className="text-xs text-gray-500">
-                                ID: {order.id?.substring(0, 8) || "unknown"}
-                                <span className="ml-2">Created: {new Date(order.createdAt).toLocaleTimeString()}</span>
+                              <div className="flex items-center mt-1">
+                                <div className="text-xs text-gray-500 mr-3">
+                                  ID: {order.id?.substring(0, 8) || "unknown"}
+                                </div>
+                                
+                                {/* Difficulty Level */}
+                                {isEditingDifficulty === order.id ? (
+                                  <div className="flex items-center">
+                                    <select
+                                      value={newDifficultyLevel}
+                                      onChange={(e) => setNewDifficultyLevel(parseInt(e.target.value))}
+                                      className="text-xs border rounded p-1 mr-2"
+                                    >
+                                      <option value={1}>Level 1 (Basic)</option>
+                                      <option value={2}>Level 2 (Intermediate)</option>
+                                      <option value={3}>Level 3 (Advanced)</option>
+                                    </select>
+                                    <button
+                                      onClick={() => handleSaveDifficulty(order.id)}
+                                      className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                                    >
+                                      Save
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div 
+                                    className={`flex items-center px-2 py-1 text-xs font-medium rounded-full cursor-pointer ${
+                                      DIFFICULTY_CONFIG[order.difficulty_level || 1].color
+                                    }`}
+                                    onClick={() => handleEditDifficulty(order.id, order.difficulty_level || 1)}
+                                  >
+                                    <BarChart2 className="w-3 h-3 mr-1" />
+                                    Level {order.difficulty_level || 1}
+                                    ({DIFFICULTY_CONFIG[order.difficulty_level || 1].label})
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <div className="flex space-x-2 items-center">
@@ -447,7 +544,7 @@ const QueueManagement: React.FC = () => {
       
       <div className="bg-white rounded-lg shadow mt-6 p-4">
         <p className="text-sm text-gray-500">
-          <strong>Note:</strong> Orders are dispatched to technicians based on their priority level (WAIT → VALET → LOANER) and then by the time they were added to the queue.
+          <strong>Note:</strong> Orders are dispatched to technicians based on their skill level and priority level (WAIT → VALET → LOANER), then by the time they were added to the queue.
         </p>
       </div>
     </div>
