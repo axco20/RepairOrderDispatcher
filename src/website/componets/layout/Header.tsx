@@ -9,36 +9,54 @@ interface HeaderProps {
   onLogin: () => void;
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (isOpen: boolean) => void;
+  onSignup?: () => void; // Add this new prop
 }
 
-const Header: FC<HeaderProps> = ({ 
-  activeTab, 
-  handleNavigation, 
-  onLogin, 
-  mobileMenuOpen, 
-  setMobileMenuOpen 
+const Header: FC<HeaderProps> = ({
+  activeTab,
+  handleNavigation,
+  onLogin,
+  mobileMenuOpen,
+  setMobileMenuOpen,
+  onSignup // Destructure the new prop
 }) => {
+  
+  // Function to handle signup and redirect
+  const handleSignup = () => {
+    // You can redirect to your signup page
+    window.location.href = "http://192.168.137.1:3000/signuppage";
+    
+    // Or if you're using React Router:
+    // history.push("/signup");
+    
+    // Or call the provided onSignup function if it exists
+    if (onSignup) {
+      onSignup();
+    }
+  };
+  
   return (
-    <header className="bg-white shadow-sm sticky top-0 z-10">
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Wrench className="h-8 w-8 text-blue-600" />
-          <span className="text-xl font-bold text-gray-900">AutoSynctify</span>
+    <header className="bg-white shadow-md">
+      <div className="container mx-auto px-4 py-2 flex justify-between items-center">
+        <div className="flex items-center">
+          <Wrench className="h-6 w-6 mr-2" />
+          <span className="text-xl font-bold">AutoSynctify</span>
         </div>
-
+        
         <NavLinks activeTab={activeTab} handleNavigation={handleNavigation} />
         
         {/* Authentication Buttons */}
-        <div className="hidden md:flex items-center space-x-4">
+        <div className="hidden md:flex space-x-4">
           <button 
+            className="px-4 py-2 text-gray-700 hover:text-gray-900"
             onClick={onLogin}
-            className="text-gray-600 hover:text-gray-900 px-3 py-2"
           >
             Log in
           </button>
+          
           <button 
-            onClick={onLogin}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            onClick={handleSignup} // Use the new handler here
           >
             Sign up
           </button>
@@ -46,24 +64,16 @@ const Header: FC<HeaderProps> = ({
         
         {/* Mobile menu button */}
         <button 
-          className="md:hidden flex items-center" 
+          className="md:hidden"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         >
-          <svg 
-            className="h-6 w-6 text-gray-500" 
-            xmlns="http://www.w3.org/2000/svg" 
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor"
-          >
-            {mobileMenuOpen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            )}
-          </svg>
+          {mobileMenuOpen ? (
+            <span>✕</span> // Close icon
+          ) : (
+            <span>☰</span> // Menu icon
+          )}
         </button>
-      </nav>
+      </div>
     </header>
   );
 };

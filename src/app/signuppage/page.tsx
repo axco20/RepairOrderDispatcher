@@ -9,6 +9,7 @@ const SignUp: React.FC = () => {
   // ✅ Read values from the URL (if they exist)
   const emailFromUrl = searchParams.get("email") || "";
   const dealershipIdFromUrl = searchParams.get("dealership_id") || null;
+  const inviteRole = searchParams.get("role");
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState(emailFromUrl); // Prefill email if in URL
@@ -82,7 +83,7 @@ const SignUp: React.FC = () => {
             auth_id: userId,
             email,
             name,
-            role: "technician", // Default to technician if invited, otherwise admin
+            role: inviteRole, // Default to technician if invited, otherwise admin
             dealership_id: finalDealershipId, // Link to existing or new dealership
           },
         ]);
