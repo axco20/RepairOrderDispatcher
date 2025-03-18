@@ -4,6 +4,18 @@ import { Search, Clock, Tag, Check, Plus, Trash2, Settings, CheckCircle, AlertTr
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { toast } from "react-toastify";
 
+interface RepairOrder {
+  id: string;
+  description?: string;
+  orderDescription?: string;
+  status: "pending" | "in_progress" | "completed";
+  priority?: number;
+  priorityType?: string;
+  createdAt?: string;
+  completedAt?: string;
+  assignedTo?: string;
+}
+
 const Orders: React.FC = () => {
   const {
     repairOrders,
@@ -23,8 +35,14 @@ const Orders: React.FC = () => {
     orderDescription: "",
     priority: 1, // Keeping this for backend compatibility
     priorityType: "WAIT" as "WAIT" | "VALET" | "LOANER",
-    status: "pending" as "pending" | "in_progress" | "completed"
+    status: "pending" as "pending" | "in_progress" | "completed",
+    assignedTo: ""
   });
+  
+  // For the assignment modal
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [currentOrderId, setCurrentOrderId] = useState("");
+  const [assignmentInput, setAssignmentInput] = useState("");
 
   useEffect(() => {
     refreshOrders();
@@ -37,10 +55,19 @@ const Orders: React.FC = () => {
       order.orderDescription?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Group orders by status
+  // Group orders by status and sort completed orders by completion date (most recent first)
   const pendingOrders = filteredOrders.filter((o) => o.status === "pending");
   const inProgressOrders = filteredOrders.filter((o) => o.status === "in_progress");
-  const completedOrders = filteredOrders.filter((o) => o.status === "completed");
+  const completedOrders = filteredOrders
+    .filter((o) => o.status === "completed")
+    .sort((a: RepairOrder, b: RepairOrder) => {
+      // Sort by completedAt date if available, otherwise use createdAt
+      const dateA = a.completedAt ? new Date(a.completedAt) : new Date(a.createdAt || 0);
+      const dateB = b.completedAt ? new Date(b.completedAt) : new Date(b.createdAt || 0);
+      return dateB.getTime() - dateA.getTime(); // Most recent first
+    })
+    // Limit to most recent 50 completed orders to prevent UI overload
+    .slice(0, 50);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -82,7 +109,7 @@ const Orders: React.FC = () => {
     try {
       // Make sure required fields are present
       if (!formData.description) {
-        toast.error("❌ Description is required.");
+        toast.error("❌ Repair Order Number is required.");
         return;
       }
 
@@ -102,7 +129,8 @@ const Orders: React.FC = () => {
           orderDescription: "",
           priority: 1,
           priorityType: "WAIT",
-          status: "pending"
+          status: "pending",
+          assignedTo: ""
         });
         
         // Switch to the pending tab if we just added a pending order
@@ -114,27 +142,6 @@ const Orders: React.FC = () => {
       }
     } catch (error) {
       toast.error("❌ Error creating repair order: " + error);
-    }
-  };
-
-  const handleStatusChange = async (id: string, newStatus: "pending" | "in_progress" | "completed") => {
-    try {
-      let updates: Partial<any> = { status: newStatus };
-      
-      // Add timestamps for completed orders
-      if (newStatus === "completed") {
-        updates.completedAt = new Date().toISOString();
-      }
-      
-      const result = await updateRepairOrder(id, updates);
-      
-      if (result) {
-        toast.success(`✅ Order status updated to ${newStatus}!`);
-      } else {
-        toast.error("❌ Failed to update order status.");
-      }
-    } catch (error) {
-      toast.error("❌ Error updating order status: " + error);
     }
   };
 
@@ -150,6 +157,35 @@ const Orders: React.FC = () => {
       } catch (error) {
         toast.error("❌ Error deleting repair order: " + error);
       }
+    }
+  };
+  
+  // Handle opening the assign modal
+  const handleAssignOrder = (id: string) => {
+    setCurrentOrderId(id);
+    setAssignmentInput("");
+    setIsAssignModalOpen(true);
+  };
+  
+  // Handle submitting the assignment
+  const handleAssignSubmit = async () => {
+    if (!assignmentInput.trim()) {
+      toast.error("❌ Please enter a name to assign this order to.");
+      return;
+    }
+    
+    try {
+      const updates = { assignedTo: assignmentInput.trim() };
+      const result = await updateRepairOrder(currentOrderId, updates);
+      
+      if (result) {
+        toast.success(`✅ Order assigned to ${assignmentInput.trim()}!`);
+        setIsAssignModalOpen(false);
+      } else {
+        toast.error("❌ Failed to assign order.");
+      }
+    } catch (error) {
+      toast.error("❌ Error assigning order: " + error);
     }
   };
 
@@ -171,19 +207,23 @@ const Orders: React.FC = () => {
     // Format based on wait time duration
     let display = '';
     let color = '';
+    let showAlert = false;
     
     if (diffMinutes < 15) {
       display = `${diffMinutes}m`;
       color = 'text-orange-500';
+      showAlert = false;
     } else if (diffMinutes < 30) {
       display = `${diffMinutes}m`;
       color = 'text-red-500';
+      showAlert = true;
     } else {
       display = `${diffMinutes}m`;
       color = 'text-red-600 font-bold';
+      showAlert = true;
     }
     
-    return { display, color };
+    return { display, color, showAlert };
   };
 
   // Get status badge
@@ -322,7 +362,7 @@ const Orders: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description *
+                    Repair Order Number *
                   </label>
                   <input
                     type="text"
@@ -330,7 +370,7 @@ const Orders: React.FC = () => {
                     value={formData.description}
                     onChange={handleInputChange}
                     required
-                    placeholder="Brief issue description"
+                    placeholder="Enter repair order number"
                     className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                   />
                 </div>
@@ -378,16 +418,16 @@ const Orders: React.FC = () => {
           </div>
         )}
 
-        {/* Tab Navigation - REMOVED BORDER */}
-        <div className="bg-white shadow-sm rounded-t-lg">
-          <div className="flex">
+        {/* Tab Navigation */}
+        <div className="mb-6">
+          <div className="flex border-b">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center py-2 px-4 text-sm font-medium border-b-2 focus:outline-none ${
+                className={`flex items-center py-2 px-6 text-sm font-medium border-b-2 focus:outline-none ${
                   activeTab === tab.id
-                    ? `border-${tab.color}-500 text-${tab.color}-600`
+                    ? `border-${tab.color}-500 text-${tab.color}-600 -mb-px`
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
@@ -407,8 +447,8 @@ const Orders: React.FC = () => {
           </div>
         </div>
 
-        {/* Table Content - REMOVED BORDER */}
-        <div className="rounded-b-lg shadow-sm bg-white overflow-hidden">
+        {/* Table Content */}
+        <div className="rounded-lg shadow-sm bg-white overflow-hidden">
           {loading ? (
             <div className="text-center py-6">Loading repair orders...</div>
           ) : error ? (
@@ -421,17 +461,20 @@ const Orders: React.FC = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Order ID
                   </th>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Submitted
                   </th>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Wait Time
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Assigned To
                   </th>
                   <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -444,7 +487,7 @@ const Orders: React.FC = () => {
                   return (
                     <tr key={order.id} className={getRowBgColor(order.status)}>
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {order.id ? `#${order.id.substring(0, 6)}` : 'N/A'}
+                        {order.description || (order.id ? `#${order.id.substring(0, 6)}` : 'N/A')}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {getStatusBadge(order.status)}
@@ -455,7 +498,7 @@ const Orders: React.FC = () => {
                       <td className="px-4 py-3 whitespace-nowrap">
                         {waitTime && (
                           <div className={`flex items-center gap-1 ${waitTime.color}`}>
-                            {parseInt(waitTime.display) > 15 ? (
+                            {waitTime.showAlert ? (
                               <AlertTriangle className="w-4 h-4" />
                             ) : (
                               <Clock className="w-4 h-4" />
@@ -464,22 +507,24 @@ const Orders: React.FC = () => {
                           </div>
                         )}
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                        {order.assignedTo ? (
+                          <span className="text-gray-700 text-sm">
+                            {order.assignedTo}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-sm">Unassigned</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end gap-2">
-                          <select
-                            value={order.status}
-                            onChange={(e) =>
-                              handleStatusChange(
-                                order.id,
-                                e.target.value as "pending" | "in_progress" | "completed"
-                              )
-                            }
-                            className="text-xs border border-gray-300 rounded p-1 bg-white shadow-sm hover:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                          <button
+                            onClick={() => handleAssignOrder(order.id)}
+                            className="px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors duration-200 flex items-center gap-1"
+                            aria-label="Assign order"
                           >
-                            <option value="pending">Pending</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                          </select>
+                            Assign
+                          </button>
                           <button
                             onClick={() => handleDeleteOrder(order.id)}
                             className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors duration-200"
@@ -497,6 +542,47 @@ const Orders: React.FC = () => {
           )}
         </div>
       </div>
+      
+      {/* Assignment Modal */}
+      {isAssignModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+              <Tag className="w-5 h-5 text-blue-500" />
+              Assign Repair Order
+            </h3>
+            
+            <div className="mb-4">
+              <label htmlFor="assignTo" className="block text-sm font-medium text-gray-700 mb-1">
+                Assign to
+              </label>
+              <input
+                type="text"
+                id="assignTo"
+                value={assignmentInput}
+                onChange={(e) => setAssignmentInput(e.target.value)}
+                placeholder="Enter technician or employee name"
+                className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+              />
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setIsAssignModalOpen(false)}
+                className="px-3 py-1.5 border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 shadow-sm text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAssignSubmit}
+                className="px-3 py-1.5 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 shadow-sm text-sm"
+              >
+                Assign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

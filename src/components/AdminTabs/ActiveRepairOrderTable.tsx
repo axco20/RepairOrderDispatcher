@@ -170,7 +170,7 @@ const ActiveRepairOrdersTable = ({ repairOrders }) => {
                   className={`hover:bg-gray-50 ${order.isUrgent ? 'urgent-row' : ''}`}
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    #{order.id.slice(-6)}
+                    {order.description || (order.id ? `#${order.id.slice(-6)}` : 'N/A')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <StatusBadge status={order.status} />

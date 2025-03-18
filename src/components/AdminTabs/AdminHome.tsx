@@ -3,8 +3,7 @@ import { useRepairOrders } from "@/context/RepairOrderContext";
 import { BarChart, Activity, Award, ArrowUp, ArrowDown, Calendar, Users, Settings } from "lucide-react";
 import { supabase } from '@/lib/supabaseClient';
 import ActiveRepairOrdersTable from './ActiveRepairOrderTable';
-import TechnicianWorkload from './TechnicianWorkload';  // Import the new component
-
+import TechnicianWorkload from './TechnicianWorkload';
 
 interface Technician {
   id: string;
@@ -23,7 +22,6 @@ interface OrderVolumeItem {
 const AdminHome: React.FC = () => {
   const { repairOrders } = useRepairOrders();
   const [timeRange, setTimeRange] = useState<"day" | "week" | "month" | "year">("day");
-  const [orderVolume, setOrderVolume] = useState<OrderVolumeItem[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [trendData, setTrendData] = useState({ 
     ordersChange: 0
@@ -141,95 +139,7 @@ const AdminHome: React.FC = () => {
       completed: filteredOrders.filter(order => order.status === 'completed').length
     });
     
-    // Order volume over time
-    const calculateOrderVolume = () => {
-      // Group data based on time period
-      const volumeData: Record<string, number> = {};
-      
-      // Create all bins first (for empty values)
-      if (timeRange === 'day') {
-        // 24 hours
-        for (let i = 0; i < 24; i++) {
-          volumeData[`${i}:00`] = 0;
-        }
-      } else if (timeRange === 'week') {
-        // 7 days
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        days.forEach(day => {
-          volumeData[day] = 0;
-        });
-      } else if (timeRange === 'month') {
-        // Days in month
-        const daysInMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
-        for (let i = 1; i <= daysInMonth; i++) {
-          volumeData[`${i}`] = 0;
-        }
-      } else if (timeRange === 'year') {
-        // 12 months
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        months.forEach(month => {
-          volumeData[month] = 0;
-        });
-      }
-      
-      // Fill with actual data - only use orders that fall within the selected time range
-      filteredOrders.forEach(order => {
-        const date = new Date(order.createdAt);
-        let key = '';
-        
-        if (timeRange === 'day') {
-          // Group by hour
-          key = `${date.getHours()}:00`;
-        } else if (timeRange === 'week') {
-          // Group by day
-          key = date.toLocaleDateString('en-US', { weekday: 'short' });
-        } else if (timeRange === 'month') {
-          // Group by day of month
-          key = `${date.getDate()}`;
-        } else if (timeRange === 'year') {
-          // Group by month
-          key = date.toLocaleDateString('en-US', { month: 'short' });
-        }
-        
-        if (volumeData[key] !== undefined) {
-          volumeData[key] += 1;
-        }
-      });
-      
-      // Convert to array for rendering
-      const result = Object.entries(volumeData).map(([label, count]) => ({
-        label,
-        count
-      }));
-      
-      // Sort appropriately
-      if (timeRange === 'week') {
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        result.sort((a, b) => days.indexOf(a.label) - days.indexOf(b.label));
-      } else if (timeRange === 'year') {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        result.sort((a, b) => months.indexOf(a.label) - months.indexOf(b.label));
-      } else if (timeRange === 'day') {
-        // For day, sort by hour
-        result.sort((a, b) => {
-          return parseInt(a.label) - parseInt(b.label);
-        });
-      } else {
-        // For month, sort by day number
-        result.sort((a, b) => {
-          return parseInt(a.label) - parseInt(b.label);
-        });
-      }
-      
-      return result;
-    };
-    
-    setOrderVolume(calculateOrderVolume());
-    
   }, [timeRange, repairOrders]);
-  
-  // Calculate max values for scaling
-  const maxOrderVolume = Math.max(...orderVolume.map(d => d.count), 1);
   
   // Calculate technician metrics based on current workload
   const activeTechnicians = technicians.length;
@@ -355,8 +265,6 @@ const AdminHome: React.FC = () => {
           </div>
         </div>
       </div>
-      
-      {/* Stats Cards removed as requested */}
 
       {/* Two column layout for Orders Table and Technician Workload */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -370,55 +278,8 @@ const AdminHome: React.FC = () => {
           <TechnicianWorkload 
             technicians={technicians}
             repairOrders={repairOrders}
-            limit={6}
           />
         </div>
-      </div>
-      
-      {/* Correctly Oriented Bar Chart */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-lg font-bold mb-4 flex items-center">
-          <BarChart className="h-5 w-5 mr-2 text-indigo-600" />
-          Order Volume by {timeRange === 'day' ? 'Hour' : 
-                         timeRange === 'week' ? 'Day' : 
-                         timeRange === 'month' ? 'Day' : 'Month'}
-        </h2>
-        
-        <div>
-          <div className="flex items-end border-l border-b border-gray-300 h-64 pt-8">
-            {orderVolume.map((item, index) => (
-              <div key={index} className="flex-1 flex flex-col items-center pb-1">
-                {/* Bar value */}
-                <div className="text-xs font-medium text-gray-700 mb-1">{item.count}</div>
-                
-                {/* The bar */}
-                <div 
-                  className="w-8 bg-indigo-600 rounded-t-sm" 
-                  style={{ 
-                    height: item.count > 0 ? `${(item.count / maxOrderVolume) * 180}px` : '0',
-                    minHeight: item.count > 0 ? '4px' : '0'
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-          
-          {/* X-axis labels */}
-          <div className="flex mt-1">
-            {orderVolume.map((item, index) => (
-              <div key={index} className="flex-1 text-xs text-gray-600 text-center truncate px-1">
-                {item.label}
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <p className="text-sm text-gray-500 text-center mt-6">
-          {timeRange === 'day' ? 'Hourly breakdown of repair orders for today' : 
-           timeRange === 'week' ? 'Daily breakdown of repair orders for the past week' : 
-           timeRange === 'month' ? 'Daily breakdown of repair orders for the past month' : 
-           'Monthly breakdown of repair orders for the past year'}
-        </p>
       </div>
     </div>
   );
