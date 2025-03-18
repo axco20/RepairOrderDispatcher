@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, Edit, BarChart2 } from "lucide-react";
+import { Search, Edit, BarChart2, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "react-toastify";
 
@@ -19,9 +19,12 @@ const TeamMembers: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModal2Open, setIsModal2Open] = useState(false);
   const [isSkillModalOpen, setIsSkillModalOpen] = useState(false);
+  const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [selectedTechnician, setSelectedTechnician] = useState<TeamMember | null>(null);
+  const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
   const [skillLevel, setSkillLevel] = useState<number>(1);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   useEffect(() => {
     fetchMembers();
@@ -162,6 +165,45 @@ const TeamMembers: React.FC = () => {
     }
   };
 
+  // Function to open remove member confirmation modal
+  const handleRemoveMember = (member: TeamMember) => {
+    setMemberToRemove(member);
+    setIsRemoveModalOpen(true);
+  };
+
+  // Function to execute the removal of a team member
+  const confirmRemoveMember = async () => {
+    if (!memberToRemove) return;
+    
+    setIsRemoving(true);
+    
+    try {
+      // 1. Remove the user from the database
+      const { error } = await supabase
+        .from("users")
+        .delete()
+        .eq("id", memberToRemove.id);
+
+      if (error) {
+        console.error("Error removing team member:", error);
+        toast.error("❌ Failed to remove team member");
+        return;
+      }
+
+      // 2. Update local state by filtering out the removed member
+      setMembers(members.filter(member => member.id !== memberToRemove.id));
+      
+      toast.success(`✅ ${memberToRemove.name || memberToRemove.email} has been removed from your team`);
+      setIsRemoveModalOpen(false);
+      setMemberToRemove(null);
+    } catch (error) {
+      console.error("Error removing team member:", error);
+      toast.error("❌ An error occurred while removing the team member");
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
   // Helper function to get skill level badge color
   const getSkillLevelColor = (level?: number) => {
     switch (level) {
@@ -248,12 +290,24 @@ const TeamMembers: React.FC = () => {
                     <p className="text-sm text-gray-500">{admin.email}</p>
                   </div>
                 </div>
-                <span
-                  className="px-2 py-1 text-xs font-semibold text-orange-800 
-                             bg-orange-100 rounded-full"
-                >
-                  Admin
-                </span>
+                <div className="flex items-center space-x-3">
+                  {/* Remove Button */}
+                  <button
+                    onClick={() => handleRemoveMember(admin)}
+                    className="p-1 text-gray-500 hover:text-red-600 rounded-full hover:bg-gray-100"
+                    aria-label="Remove admin"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  
+                  {/* Role Badge */}
+                  <span
+                    className="px-2 py-1 text-xs font-semibold text-orange-800 
+                              bg-orange-100 rounded-full"
+                  >
+                    Admin
+                  </span>
+                </div>
               </div>
             ))}
           </div>
@@ -312,6 +366,15 @@ const TeamMembers: React.FC = () => {
                     aria-label="Edit skill level"
                   >
                     <Edit className="w-4 h-4" />
+                  </button>
+                  
+                  {/* Remove Button */}
+                  <button
+                    onClick={() => handleRemoveMember(tech)}
+                    className="p-1 text-gray-500 hover:text-red-600 rounded-full hover:bg-gray-100"
+                    aria-label="Remove technician"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </button>
                   
                   {/* Role Badge */}
@@ -454,6 +517,47 @@ const TeamMembers: React.FC = () => {
                 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for Remove Member Confirmation */}
+      {isRemoveModalOpen && memberToRemove && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
+            <h2 className="text-lg font-bold text-white mb-4 text-center">
+              Remove Team Member
+            </h2>
+            <div className="mb-6">
+              <div className="bg-red-900 bg-opacity-20 p-4 rounded-md border border-red-800 mb-4">
+                <p className="text-white text-sm mb-1">
+                  Are you sure you want to remove:
+                </p>
+                <p className="text-white font-medium mb-0">
+                  {memberToRemove.name || memberToRemove.email} <span className="text-sm font-normal">({memberToRemove.role})</span>
+                </p>
+              </div>
+              <p className="text-gray-300 text-sm">
+                This action cannot be undone. The user will lose all access to your team's system.
+              </p>
+            </div>
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => setIsRemoveModalOpen(false)}
+                className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 
+                focus:outline-none focus:ring-2 focus:ring-gray-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRemoveMember}
+                disabled={isRemoving}
+                className="px-4 py-2 w-28 rounded-md text-white bg-red-600 hover:bg-red-700 
+                focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isRemoving ? "Removing..." : "Remove"}
               </button>
             </div>
           </div>
