@@ -1,11 +1,32 @@
-// Updated ActiveRepairOrdersTable component with difficulty level support
+// Updated ActiveRepairOrdersTable component with difficulty level support and TypeScript fixes
 
 import React, { useState, useEffect } from "react";
-import { Clock, AlertTriangle, CheckCircle, ArrowRightCircle, BarChart2 } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
+import { Clock, AlertTriangle, CheckCircle, ArrowRightCircle, BarChart2, Pause } from "lucide-react";
+
+// Define interfaces for type safety
+interface RepairOrder {
+  id: string;
+  description?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'on_hold';
+  difficulty_level?: number;
+  createdAt: string;
+  minutesElapsed?: number;
+  isUrgent?: boolean;
+}
+
+interface User {
+  id: string;
+  role?: string;
+  skill_level?: number;
+}
+
+interface ActiveRepairOrdersTableProps {
+  repairOrders: RepairOrder[];
+  currentUser?: User;
+}
 
 // Helper function to format date
-const formatDate = (dateString) => {
+const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
   return date.toLocaleString('en-US', { 
     month: 'short', 
@@ -16,33 +37,14 @@ const formatDate = (dateString) => {
 };
 
 // Helper function to calculate time elapsed in minutes
-const getMinutesElapsed = (dateString) => {
+const getMinutesElapsed = (dateString: string): number => {
   const created = new Date(dateString);
   const now = new Date();
-  return Math.floor((now - created) / (1000 * 60));
+  return Math.floor((now.getTime() - created.getTime()) / (1000 * 60));
 };
 
-const ActiveRepairOrdersTable = ({ repairOrders, currentUser }) => {
-  const [orders, setOrders] = useState([]);
-  const [technicians, setTechnicians] = useState([]);
-  
-  // Fetch technicians to get skill levels
-  useEffect(() => {
-    const fetchTechnicians = async () => {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("role", "technician");
-      
-      if (error) {
-        console.error("Error fetching technicians:", error);
-      } else if (data) {
-        setTechnicians(data);
-      }
-    };
-    
-    fetchTechnicians();
-  }, []);
+const ActiveRepairOrdersTable: React.FC<ActiveRepairOrdersTableProps> = ({ repairOrders, currentUser }) => {
+  const [orders, setOrders] = useState<RepairOrder[]>([]);
   
   // Update orders every minute to refresh the urgency indicators
   useEffect(() => {
@@ -74,7 +76,7 @@ const ActiveRepairOrdersTable = ({ repairOrders, currentUser }) => {
             if (a.status === 'pending') return -1;
             if (b.status === 'pending') return 1;
           }
-          return new Date(a.createdAt) - new Date(b.createdAt);
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         });
       
       setOrders(processedOrders);
@@ -103,7 +105,7 @@ const ActiveRepairOrdersTable = ({ repairOrders, currentUser }) => {
   `;
   
   // Status badges
-  const StatusBadge = ({ status }) => {
+  const StatusBadge: React.FC<{ status: 'pending' | 'in_progress' | 'completed' | 'on_hold' }> = ({ status }) => {
     if (status === 'pending') {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -116,6 +118,12 @@ const ActiveRepairOrdersTable = ({ repairOrders, currentUser }) => {
           <ArrowRightCircle className="w-3 h-3 mr-1" /> In Progress
         </span>
       );
+    } else if (status === 'on_hold') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+          <Pause className="w-3 h-3 mr-1" /> On Hold
+        </span>
+      );
     } else {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -126,7 +134,7 @@ const ActiveRepairOrdersTable = ({ repairOrders, currentUser }) => {
   };
   
   // Difficulty level badge
-  const DifficultyBadge = ({ level }) => {
+  const DifficultyBadge: React.FC<{ level?: number }> = ({ level }) => {
     const difficultyLevel = level || 1;
     let bgColor = "bg-green-100 text-green-800";
     
@@ -143,9 +151,22 @@ const ActiveRepairOrdersTable = ({ repairOrders, currentUser }) => {
     );
   };
   
-  // Urgency indicator component
-  const UrgencyIndicator = ({ minutes }) => {
-    if (minutes >= 30) {
+// Updated Urgency Indicator component
+const UrgencyIndicator: React.FC<{ minutes: number }> = ({ minutes }) => {
+    // Format for hours and minutes when over 60 minutes
+    const formatTime = (totalMinutes: number) => {
+      const hours = Math.floor(totalMinutes / 60);
+      const remainingMinutes = totalMinutes % 60;
+      return `${hours}h ${remainingMinutes}m`;
+    };
+
+    if (minutes >= 60) {
+      return (
+        <span className="inline-flex items-center text-red-600 font-bold">
+          <AlertTriangle className="w-4 h-4 mr-1" /> {formatTime(minutes)}
+        </span>
+      );
+    } else if (minutes >= 30) {
       return (
         <span className="inline-flex items-center text-red-600 font-bold">
           <AlertTriangle className="w-4 h-4 mr-1" /> {minutes}m
@@ -161,9 +182,8 @@ const ActiveRepairOrdersTable = ({ repairOrders, currentUser }) => {
       return <span className="text-gray-500">{minutes}m</span>;
     }
   };
-  
   // EmptyState component when there are no orders
-  const EmptyState = () => (
+  const EmptyState: React.FC = () => (
     <div className="text-center py-10">
       <div className="mx-auto w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
         <Clock className="h-8 w-8 text-gray-400" />
@@ -241,7 +261,7 @@ const ActiveRepairOrdersTable = ({ repairOrders, currentUser }) => {
                     {formatDate(order.createdAt)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <UrgencyIndicator minutes={order.minutesElapsed} />
+                    <UrgencyIndicator minutes={order.minutesElapsed || 0} />
                   </td>
                 </tr>
               ))}

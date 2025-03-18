@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useRepairOrders } from "@/context/RepairOrderContext";
-import { BarChart, Activity, Award, ArrowUp, ArrowDown, Calendar, Users, Settings } from "lucide-react";
+import { BarChart, Activity, Award, ArrowUp, ArrowDown } from "lucide-react";
 import { supabase } from '@/lib/supabaseClient';
 import ActiveRepairOrdersTable from './ActiveRepairOrderTable';
 import TechnicianWorkload from './TechnicianWorkload';
@@ -11,12 +11,6 @@ interface Technician {
   name: string;
   email: string;
   role: string;
-}
-
-// Define interface for order volume data
-interface OrderVolumeItem {
-  label: string;
-  count: number;
 }
 
 const AdminHome: React.FC = () => {
@@ -140,11 +134,6 @@ const AdminHome: React.FC = () => {
     });
     
   }, [timeRange, repairOrders]);
-  
-  // Calculate technician metrics based on current workload
-  const activeTechnicians = technicians.length;
-  const avgOrdersPerTechnician = technicians.length ? 
-    Math.round(activeOrdersCount.inProgress / technicians.length * 10) / 10 : 0;
   
   return (
     <div className="space-y-8">
@@ -270,7 +259,9 @@ const AdminHome: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Active Repair Orders Table */}
         <div className="lg:col-span-2">
-          <ActiveRepairOrdersTable repairOrders={repairOrders.filter(order => order.status === 'pending')} />
+          <ActiveRepairOrdersTable 
+            repairOrders={repairOrders.filter(order => order.status === 'pending')} 
+          />
         </div>
         
         {/* Right column - Technician Workload */}

@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { Clock, Activity, CheckCircle, AlertTriangle } from "lucide-react";
@@ -37,7 +35,7 @@ const Performance: React.FC = () => {
   const isHydrated = useHydration();
   const { repairOrders, refreshOrders } = useRepairOrders();
   
-  const [timeRange, setTimeRange] = useState<"day" | "week" | "month" | "year">("week");
+  const [timeRange, setTimeRange] = useState<"day" | "week" | "month" | "year">("day");
   const [techPerformance, setTechPerformance] = useState<TechnicianPerformance[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,15 +72,6 @@ const Performance: React.FC = () => {
   
     fetchAllData();
   }, []); // run only once on mount
-
-  // Remove the separate refreshOrders effect that was causing duplicate calls.
-  // (It was similar to the below and has now been removed.)
-  // useEffect(() => {
-  //   if (!dataRefreshed) {
-  //     refreshOrders();
-  //     setDataRefreshed(true);
-  //   }
-  // }, [refreshOrders, dataRefreshed]);
 
   const getTechnicianName = useCallback((technicianId?: string) => {
     if (!technicianId) return 'Unknown';
@@ -219,6 +208,22 @@ const Performance: React.FC = () => {
     ).length;
   }, [repairOrders]);
 
+  // Helper function to get the appropriate time period text
+  const getAvgOrdersColumnText = () => {
+    switch(timeRange) {
+      case "day":
+        return "Avg. Orders per Day";
+      case "week":
+        return "Avg. Orders per Week";
+      case "month":
+        return "Avg. Orders per Month";
+      case "year":
+        return "Avg. Orders per Year";
+      default:
+        return "Avg. Orders";
+    }
+  };
+
   const maxCompletedCount = Math.max(...(techPerformance || []).map(tech => tech.completedCount || 0), 1);
 
   if (!isHydrated) {
@@ -278,7 +283,7 @@ const Performance: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-start">
             <div>
@@ -303,63 +308,40 @@ const Performance: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">Avg. Completion Time</p>
-              <p className="text-3xl font-semibold text-gray-900">
-                {techPerformance.some(tech => tech.completedCount > 0 && tech.averageMinutes > 0) 
-                  ? Math.round(
-                      techPerformance.reduce((sum, tech) => sum + (tech.averageMinutes * tech.completedCount), 0) / 
-                      Math.max(techPerformance.reduce((total, tech) => total + (tech.averageMinutes > 0 ? tech.completedCount : 0), 0), 1)
-                    )
-                  : 0}m
-              </p>
-            </div>
-            <div className="p-3 rounded-full bg-yellow-100 text-yellow-800">
-              <Clock className="h-6 w-6" />
-            </div>
-          </div>
-        </div>
       </div>
       
-      {/* Performance Overview */}
+      {/* Performance Overview - ADJUSTED HEIGHT HISTOGRAM SECTION */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-lg font-semibold mb-4">Technician Performance Overview</h2>
-        {techPerformance.length === 0 || techPerformance.every(tech => tech.completedCount === 0) ? (
-          <p className="text-gray-500 text-center py-8">No completed orders available for the selected time period</p>
+        {techPerformance.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">No technician data available for the selected time period</p>
         ) : (
           <div>
-            <div className="flex items-end border-l border-b border-gray-300 h-64 pt-8 mb-4">
-              {techPerformance.filter(tech => tech.completedCount > 0).slice(0, 10).map((tech, index) => {
+            {/* Modified histogram with improved spacing, alignment, and adjusted height */}
+            <div className="flex flex-col border-l border-b border-gray-300 h-64 pt-2 mb-4 relative overflow-x-auto pb-10">
+              <div className="absolute bottom-10 left-0 w-full flex items-end" style={{ minWidth: `${techPerformance.length * 80}px` }}>
+                {techPerformance.map((tech, index) => {
                   const barHeight = maxCompletedCount > 0 
-                    ? Math.max((tech.completedCount / maxCompletedCount) * 180, 5) 
+                    ? Math.max((tech.completedCount / maxCompletedCount) * 140, tech.completedCount > 0 ? 20 : 5) 
                     : 0;
                   return (
-                    <div key={index} className="flex flex-col items-center mx-2 flex-1">
-                      {tech.completedCount > 0 && (
-                        <div className="text-xs font-medium text-gray-700 mb-1">
-                          {tech.completedCount}
-                        </div>
-                      )}
+                    <div key={index} className="flex flex-col items-center mx-3" style={{ width: '70px', minWidth: '70px' }}>
+                      <div className="text-xs font-medium text-gray-700 mb-2">
+                        {tech.completedCount}
+                      </div>
                       <div
-                        className="w-full bg-green-600 rounded-t-sm"
-                        style={{ height: `${barHeight}px`, minHeight: tech.completedCount > 0 ? '4px' : '0' }}
+                        className={`w-full rounded-t-sm ${tech.completedCount > 0 ? 'bg-green-600' : 'bg-gray-200'}`}
+                        style={{ height: `${barHeight}px`, minHeight: '4px' }}
                       ></div>
-                      <div className="flex items-center mt-2 text-xs text-gray-600">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span>{tech.averageMinutes || 0}m</span>
+                      <div className="mt-2 text-xs text-gray-700 truncate w-full text-center" title={tech.technicianName}>
+                        {tech.technicianName.length > 10 
+                          ? `${tech.technicianName.substring(0, 8)}...` 
+                          : tech.technicianName}
                       </div>
                     </div>
                   );
                 })}
-            </div>
-            <div className="flex mb-6">
-              {techPerformance.filter(tech => tech.completedCount > 0).slice(0, 10).map((tech, index) => (
-                <div key={index} className="flex-1 text-xs text-gray-500 text-center truncate px-1">
-                  {tech.technicianName}
-                </div>
-              ))}
+              </div>
             </div>
           </div>
         )}
@@ -370,18 +352,18 @@ const Performance: React.FC = () => {
         </div>
       </div>
       
-      {/* Detailed Performance */}
+      {/* Detailed Performance - WITH DYNAMIC COLUMN HEADER */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 border-b">
           <h2 className="text-lg font-semibold">Detailed Performance</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Technician</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orders Completed</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg. Time to Complete</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{getAvgOrdersColumnText()}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Workload</th>
               </tr>
             </thead>
@@ -395,6 +377,17 @@ const Performance: React.FC = () => {
               ) : (
                 techPerformance.map((tech, index) => {
                   const currentWorkload = getCurrentWorkload(tech.technicianId);
+                  
+                  // Calculate average orders per day based on time range
+                  const daysInPeriod = timeRange === 'day' ? 1 
+                    : timeRange === 'week' ? 7 
+                    : timeRange === 'month' ? 30 
+                    : 365;
+                  
+                  const avgOrdersPerDay = tech.completedCount > 0 
+                    ? (tech.completedCount / daysInPeriod).toFixed(1)
+                    : '0';
+                  
                   return (
                     <tr key={index}>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -404,7 +397,7 @@ const Performance: React.FC = () => {
                         <div className="text-sm text-gray-900">{tech.completedCount}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{tech.averageMinutes || 0} minutes</div>
+                        <div className="text-sm text-gray-900">{avgOrdersPerDay}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">{currentWorkload} orders</div>
