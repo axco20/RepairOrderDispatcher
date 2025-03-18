@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { EmailTemplate } from "@/components/EmailTemplate2";
+import { EmailTemplate } from "@/components/EmailTemplate";
 import React from "react";
 
 // Initialize Resend with API key

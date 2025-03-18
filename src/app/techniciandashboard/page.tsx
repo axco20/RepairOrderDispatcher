@@ -1,6 +1,6 @@
 "use client";
-//technicandashboard.tsx
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import TechSidebar from "@/components/TechSideBar";
@@ -16,6 +16,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 export default function TechnicianDashboard() {
   const { currentUser, logout } = useAuth();
+  const router = useRouter();
   
   const { 
     technicianOrders, 
@@ -138,13 +139,19 @@ export default function TechnicianDashboard() {
     }
   };
 
+  // Define a logout handler that also redirects to the landing page
+  const handleLogout = async () => {
+    await logout();
+    router.push("/");
+  };
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <TechSidebar
         userName={currentUser.name}
         activePage={activePage}
         onNavigate={setActivePage}
-        onLogout={logout}
+        onLogout={handleLogout}
         activeOrdersCount={activeOrders.length}
       />
 
@@ -163,7 +170,7 @@ export default function TechnicianDashboard() {
         </div>
         
         <main className="flex-1 overflow-y-auto p-6 bg-gray-100">
-          {/* Dashboard content without header */}
+          {/* Render different main content depending on activePage */}
           {activePage === "Home" && (
             <Home 
               activeOrderCount={activeOrderCount}

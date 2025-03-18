@@ -1,4 +1,5 @@
 // Updated ActiveRepairOrdersTable component with difficulty level support and TypeScript fixes
+"use client"; // Needed for hooks in Next.js
 
 import React, { useState, useEffect } from "react";
 import { Clock, AlertTriangle, CheckCircle, ArrowRightCircle, BarChart2, Pause } from "lucide-react";

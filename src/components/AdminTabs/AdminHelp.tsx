@@ -1,3 +1,5 @@
+"use client"; // Needed for hooks in Next.js
+
 import React, { useState, ReactNode, isValidElement } from 'react';
 import { HelpCircle, ChevronDown, Search } from 'lucide-react';
 

@@ -1,3 +1,5 @@
+"use client"; // Needed for hooks in Next.js
+
 import React, { useState, useEffect } from "react";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { BarChart, Activity, Award, ArrowUp, ArrowDown } from "lucide-react";

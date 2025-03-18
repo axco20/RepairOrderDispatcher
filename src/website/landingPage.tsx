@@ -11,18 +11,13 @@ import Pricing from './pages/Pricing';
 import About from './pages/About';
 import Contact from './pages/Contact';
 
-// Landing page props
-interface LandingPageProps {
-  onLogin: () => void;
-}
-
-const LandingPage: FC<LandingPageProps> = ({ onLogin }) => {
+const LandingPage: FC = () => {
   // State for current active tab
   const [activeTab, setActiveTab] = useState<PageTab>('home');
-  
+
   // State for mobile menu
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
+
   // Features data
   const features = [
     {
@@ -56,37 +51,9 @@ const LandingPage: FC<LandingPageProps> = ({ onLogin }) => {
       description: "Real-time tracking of repair jobs for maximum transparency."
     }
   ];
-  
+
   // Pricing plans
   const pricingPlans = [
-    
-    //{
-      //name: "Starter",
-      //price: "$49",
-      //description: "Perfect for small repair shops just getting started",
-      //features: [
-        //"Up to 5 technician accounts",
-        //"Basic work order management",
-        //"Customer database",
-        //"Email notifications",
-        //"8/5 email support"
-      //]
-    //},
-    //{
-      //name: "Professional",
-      //price: "$99",
-      //description: "Ideal for growing auto repair businesses",
-      //features: [
-        //"Up to 15 technician accounts",
-        //"Advanced work order management",
-        //"Customer database with history",
-        //"Email & SMS notifications",
-        //"Priority queue management",
-       // "Basic analytics dashboard",
-       // "24/7 email & chat support"
-      //],
-      //popular: true
-   // },
     {
       name: "Enterprise",
       price: "Free Alpha Access",
@@ -103,7 +70,7 @@ const LandingPage: FC<LandingPageProps> = ({ onLogin }) => {
       ]
     }
   ];
-  
+
   // Footer links
   const footerLinks = {
     product: ["Features", "Integrations", "Pricing", "FAQ", "Updates"],
@@ -111,21 +78,20 @@ const LandingPage: FC<LandingPageProps> = ({ onLogin }) => {
     resources: ["Blog", "Documentation", "Community", "Contact Sales", "Help Center"],
     legal: ["Privacy Policy", "Terms of Service", "Cookie Policy", "GDPR Compliance", "Security"]
   };
-  
+
   // Handle navigation
   const handleNavigation = (tab: PageTab) => {
     setActiveTab(tab);
     window.scrollTo(0, 0);
     setMobileMenuOpen(false);
   };
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
       {/* Header */}
       <Header 
         activeTab={activeTab} 
         handleNavigation={handleNavigation}
-        onLogin={onLogin}
         mobileMenuOpen={mobileMenuOpen}
         setMobileMenuOpen={setMobileMenuOpen}
       />
@@ -135,7 +101,6 @@ const LandingPage: FC<LandingPageProps> = ({ onLogin }) => {
         activeTab={activeTab}
         handleNavigation={handleNavigation}
         mobileMenuOpen={mobileMenuOpen}
-        onLogin={onLogin}
       />
 
       {/* Main Content Based on Active Tab */}

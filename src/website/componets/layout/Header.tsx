@@ -24,15 +24,17 @@ const Header: FC<HeaderProps> = ({
   // Function to handle signup and redirect
   const handleSignup = () => {
     // You can redirect to your signup page
-    window.location.href = "http://192.168.137.1:3000/signuppage";
-    
-    // Or if you're using React Router:
-    // history.push("/signup");
+    window.location.href = "http://localhost:3000/signuppage";
     
     // Or call the provided onSignup function if it exists
     if (onSignup) {
       onSignup();
     }
+  };
+
+  const handleLogin = () => {
+
+    window.location.href = "http://localhost:3000/loginpage";
   };
   
   return (
@@ -49,7 +51,7 @@ const Header: FC<HeaderProps> = ({
         <div className="hidden md:flex space-x-4">
           <button 
             className="px-4 py-2 text-gray-700 hover:text-gray-900"
-            onClick={onLogin}
+            onClick={handleLogin}
           >
             Log in
           </button>
