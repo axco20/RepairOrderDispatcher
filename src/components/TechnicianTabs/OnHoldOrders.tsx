@@ -121,19 +121,13 @@ export default function ActiveOrders() {
                     <tr key={order.id}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {/* Shortened ID for better display */}
-                          {order.id.substring(0, 8)}...
+                          {order.description}
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">
-                          {order.description}
+                          {order.orderDescription}
                         </div>
-                        {order.orderDescription && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            {order.orderDescription}
-                          </div>
-                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-500">

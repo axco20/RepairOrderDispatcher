@@ -16,7 +16,8 @@ interface Technician {
 }
 
 const AdminHome: React.FC = () => {
-  const { repairOrders } = useRepairOrders();
+  // Destructure repairOrders and refreshOrders from your context
+  const { repairOrders, refreshOrders } = useRepairOrders();
   const [timeRange, setTimeRange] = useState<"day" | "week" | "month" | "year">("day");
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [trendData, setTrendData] = useState({ 
@@ -29,6 +30,11 @@ const AdminHome: React.FC = () => {
     completed: 0
   });
   
+  // Refresh orders when AdminHome mounts
+  useEffect(() => {
+    refreshOrders();
+  }, []);
+
   // Fetch technicians from Supabase
   useEffect(() => {
     const fetchTechnicians = async () => {
@@ -75,10 +81,9 @@ const AdminHome: React.FC = () => {
     fetchTechnicians();
   }, []);
   
-  
   // Process data for metrics
   useEffect(() => {
-    // Get date range based on selected time period
+    // Helper: Calculate date range based on selected time period
     const getDateRange = () => {
       const now = new Date();
       const endDate = now;
@@ -87,34 +92,26 @@ const AdminHome: React.FC = () => {
       
       switch(timeRange) {
         case "day":
-          // Reset to start of current day
           startDate.setHours(0, 0, 0, 0);
-          // Previous period is previous day
           previousStartDate.setDate(previousStartDate.getDate() - 1);
           previousStartDate.setHours(0, 0, 0, 0);
           break;
         case "week":
-          // Start of week (go back 6 days from today)
           startDate.setDate(startDate.getDate() - 6);
           startDate.setHours(0, 0, 0, 0);
-          // Previous period is previous week
           previousStartDate.setDate(previousStartDate.getDate() - 7);
           previousStartDate.setHours(0, 0, 0, 0);
           break;
         case "month":
-          // Start of month
           startDate.setDate(1);
           startDate.setHours(0, 0, 0, 0);
-          // Previous period is previous month
           previousStartDate.setMonth(previousStartDate.getMonth() - 1);
           previousStartDate.setDate(1);
           previousStartDate.setHours(0, 0, 0, 0);
           break;
         case "year":
-          // Start of year
           startDate.setMonth(0, 1);
           startDate.setHours(0, 0, 0, 0);
-          // Previous period is previous year
           previousStartDate.setFullYear(previousStartDate.getFullYear() - 1);
           previousStartDate.setMonth(0, 1);
           previousStartDate.setHours(0, 0, 0, 0);
@@ -126,7 +123,7 @@ const AdminHome: React.FC = () => {
     
     const { startDate, endDate, previousStartDate } = getDateRange();
     
-    // Filter orders by date range - strictly within the selected time range
+    // Filter orders by date range
     const filteredOrders = repairOrders.filter(order => {
       const orderDate = new Date(order.createdAt);
       return orderDate >= startDate && orderDate <= endDate;
@@ -141,20 +138,13 @@ const AdminHome: React.FC = () => {
     // Calculate trend percentages
     if (previousPeriodOrders.length > 0) {
       const orderChangePercent = ((filteredOrders.length - previousPeriodOrders.length) / previousPeriodOrders.length) * 100;
-      
       setTrendData({
         ordersChange: parseFloat(orderChangePercent.toFixed(1))
       });
     } else if (filteredOrders.length > 0) {
-      // If there were no orders in the previous period but there are now
-      setTrendData({
-        ordersChange: 100
-      });
+      setTrendData({ ordersChange: 100 });
     } else {
-      // No orders in either period
-      setTrendData({
-        ordersChange: 0
-      });
+      setTrendData({ ordersChange: 0 });
     }
     
     // Update active order counts based on filtered orders

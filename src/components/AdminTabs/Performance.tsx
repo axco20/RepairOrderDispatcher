@@ -8,11 +8,9 @@ import { supabase } from '@/lib/supabaseClient';
 // Hydration fix hook
 function useHydration() {
   const [isHydrated, setIsHydrated] = useState(false);
-  
   useEffect(() => {
     setIsHydrated(true);
   }, []);
-  
   return isHydrated;
 }
 
@@ -43,27 +41,44 @@ const Performance: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Combine orders and technicians fetching into one effect
+  // Fetch orders & technicians (only from same dealership) on mount
   useEffect(() => {
     const fetchAllData = async () => {
       try {
         setIsLoading(true);
-  
-        // Refresh orders
+
+        // 1. Refresh orders from context
         await refreshOrders();
-  
-        // Fetch technicians
+
+        // 2. Get current user
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData?.user?.id) {
+          throw new Error("No current user found.");
+        }
+
+        // 3. Get admin’s dealership_id
+        const { data: adminData, error: adminError } = await supabase
+          .from("users")
+          .select("dealership_id")
+          .eq("auth_id", userData.user.id)
+          .single();
+
+        if (adminError || !adminData?.dealership_id) {
+          throw new Error("Failed to retrieve admin’s dealership_id.");
+        }
+
+        // 4. Fetch technicians for that dealership
         const { data, error } = await supabase
           .from("users")
           .select("id, auth_id, name, email, role")
-          .eq("role", "technician");
-  
+          .eq("role", "technician")
+          .eq("dealership_id", adminData.dealership_id);
+
         if (error) {
-          console.error("Error fetching technicians:", error);
-          setError("Failed to fetch technicians");
-        } else if (data) {
-          setTechnicians(data);
+          throw new Error(error.message);
         }
+
+        setTechnicians(data || []);
       } catch (err) {
         console.error("Error in fetchAllData:", err);
         setError("An unexpected error occurred while fetching data");
@@ -71,36 +86,39 @@ const Performance: React.FC = () => {
         setIsLoading(false);
       }
     };
-  
-    fetchAllData();
-  }, []); // run only once on mount
 
-  const getTechnicianName = useCallback((technicianId?: string) => {
-    if (!technicianId) return 'Unknown';
-    const tech = technicians.find(t => 
-      t.id === technicianId || 
-      t.auth_id === technicianId
-    );
-    return tech ? tech.name : `Tech ${technicianId.substring(0, 6)}`;
-  }, [technicians]);
-  
-  // Process performance metrics when repairOrders or technicians change
+    fetchAllData();
+  }, []);
+
+  const getTechnicianName = useCallback(
+    (technicianId?: string) => {
+      if (!technicianId) return 'Unknown';
+      const tech = technicians.find(
+        t => t.id === technicianId || t.auth_id === technicianId
+      );
+      return tech ? tech.name : `Tech ${technicianId.substring(0, 6)}`;
+    },
+    [technicians]
+  );
+
+  // Compute performance metrics any time repairOrders or technicians change
   useEffect(() => {
-    if (!repairOrders || repairOrders.length === 0) {
+    if (!repairOrders?.length) {
       console.log('No repair orders available yet');
       return;
     }
-    if (!technicians || technicians.length === 0) {
+    if (!technicians?.length) {
       console.log('No technicians available yet');
       return;
     }
-    
+
     try {
       const getDateRange = () => {
         const now = new Date();
         const endDate = now;
         const startDate = new Date();
-        switch(timeRange) {
+
+        switch (timeRange) {
           case "day":
             startDate.setHours(0, 0, 0, 0);
             break;
@@ -116,14 +134,15 @@ const Performance: React.FC = () => {
         }
         return { startDate, endDate };
       };
-      
+
       const { startDate, endDate } = getDateRange();
-      
+
       const calculateTechPerformance = () => {
         const completedOrders = repairOrders.filter(order => {
           if (order.status !== 'completed') return false;
           if (!order.assignedTo) return false;
-          
+
+          // Check if the completed date or updatedAt is in the time range
           if (order.completedAt) {
             const completedDate = new Date(order.completedAt);
             return completedDate >= startDate && completedDate <= endDate;
@@ -134,25 +153,28 @@ const Performance: React.FC = () => {
           }
           return false;
         });
-        
+
         console.log(`Found ${completedOrders.length} completed orders in date range`);
-        
+
+        // Build a record of technician performance
         const techStats: Record<string, TechnicianPerformance> = {};
-        
+
         technicians.forEach(tech => {
-          techStats[tech.id] = {
-            technicianId: tech.id,
+          techStats[tech.auth_id] = {
+            technicianId: tech.auth_id,
             technicianName: tech.name,
             completedCount: 0,
             totalTimeMs: 0,
             averageTimeMs: 0,
-            averageMinutes: 0
+            averageMinutes: 0,
           };
         });
-        
+
         completedOrders.forEach(order => {
           const technicianId = order.assignedTo;
           if (!technicianId) return;
+
+          // Make sure we have an entry for this tech
           if (!techStats[technicianId]) {
             techStats[technicianId] = {
               technicianId,
@@ -160,42 +182,48 @@ const Performance: React.FC = () => {
               completedCount: 0,
               totalTimeMs: 0,
               averageTimeMs: 0,
-              averageMinutes: 0
+              averageMinutes: 0,
             };
           }
-          
+
+          // If assignedAt and completedAt exist, calculate total time
           if (order.assignedAt && (order.completedAt || order.updatedAt)) {
             const startTime = new Date(order.assignedAt).getTime();
-            const endTime = order.completedAt 
-              ? new Date(order.completedAt).getTime() 
+            const endTime = order.completedAt
+              ? new Date(order.completedAt).getTime()
               : new Date(order.updatedAt as string).getTime();
             const timeToComplete = endTime - startTime;
+
             if (timeToComplete > 0) {
               techStats[technicianId].completedCount += 1;
               techStats[technicianId].totalTimeMs += timeToComplete;
             } else {
+              // If negative or zero, still increment completedCount
               techStats[technicianId].completedCount += 1;
             }
           } else {
             techStats[technicianId].completedCount += 1;
           }
         });
-        
-        Object.values(techStats).forEach((stat) => {
+
+        // Compute averages
+        Object.values(techStats).forEach(stat => {
           if (stat.completedCount > 0 && stat.totalTimeMs > 0) {
             stat.averageTimeMs = Math.round(stat.totalTimeMs / stat.completedCount);
             stat.averageMinutes = Math.round(stat.averageTimeMs / (1000 * 60));
           }
         });
-        
-        return Object.values(techStats)
-          .sort((a, b) => b.completedCount - a.completedCount);
+
+        // Return as an array, sorted by completedCount desc
+        return Object.values(techStats).sort(
+          (a, b) => b.completedCount - a.completedCount
+        );
       };
-      
+
       const performanceData = calculateTechPerformance();
       console.log('Performance data calculated:', performanceData);
       setTechPerformance(performanceData);
-      
+
     } catch (error) {
       console.error('Error processing performance data:', error);
       setError("Failed to process performance data");
@@ -203,30 +231,30 @@ const Performance: React.FC = () => {
     }
   }, [timeRange, repairOrders, technicians, getTechnicianName]);
 
-  const getCurrentWorkload = useCallback((technicianId: string) => {
-    if (!repairOrders || !Array.isArray(repairOrders)) return 0;
+  // Current workload helper
+  const getCurrentWorkload = useCallback((auth_id: string) => {
+    if (!repairOrders) return 0;
     return repairOrders.filter(
-      order => order.assignedTo === technicianId && order.status === 'in_progress'
+      order => order.assignedTo === auth_id && order.status === 'in_progress'
     ).length;
   }, [repairOrders]);
 
-  // Helper function to get the appropriate time period text
+  // Dynamic column label
   const getAvgOrdersColumnText = () => {
     switch(timeRange) {
-      case "day":
-        return "Avg. Orders per Day";
-      case "week":
-        return "Avg. Orders per Week";
-      case "month":
-        return "Avg. Orders per Month";
-      case "year":
-        return "Avg. Orders per Year";
-      default:
-        return "Avg. Orders";
+      case "day":   return "Avg. Orders per Day";
+      case "week":  return "Avg. Orders per Week";
+      case "month": return "Avg. Orders per Month";
+      case "year":  return "Avg. Orders per Year";
+      default:      return "Avg. Orders";
     }
   };
 
-  const maxCompletedCount = Math.max(...(techPerformance || []).map(tech => tech.completedCount || 0), 1);
+  // Max completed count for histogram scaling
+  const maxCompletedCount = Math.max(
+    ...techPerformance.map(tech => tech.completedCount || 0),
+    1
+  );
 
   if (!isHydrated) {
     return <div className="p-6">Loading performance data...</div>;
@@ -265,20 +293,40 @@ const Performance: React.FC = () => {
           <p className="text-gray-500">Performance metrics for your technical team</p>
         </div>
         <div className="inline-flex rounded-md shadow-sm" role="group">
-          <button type="button" onClick={() => setTimeRange("day")}
-            className={`px-4 py-2 text-sm font-medium rounded-l-lg ${timeRange === "day" ? "text-white bg-indigo-600" : "text-gray-900 bg-white hover:bg-gray-100"}`}>
+          <button
+            type="button"
+            onClick={() => setTimeRange("day")}
+            className={`px-4 py-2 text-sm font-medium rounded-l-lg ${
+              timeRange === "day" ? "text-white bg-indigo-600" : "text-gray-900 bg-white hover:bg-gray-100"
+            }`}
+          >
             Today
           </button>
-          <button type="button" onClick={() => setTimeRange("week")}
-            className={`px-4 py-2 text-sm font-medium ${timeRange === "week" ? "text-white bg-indigo-600" : "text-gray-900 bg-white hover:bg-gray-100"}`}>
+          <button
+            type="button"
+            onClick={() => setTimeRange("week")}
+            className={`px-4 py-2 text-sm font-medium ${
+              timeRange === "week" ? "text-white bg-indigo-600" : "text-gray-900 bg-white hover:bg-gray-100"
+            }`}
+          >
             Week
           </button>
-          <button type="button" onClick={() => setTimeRange("month")}
-            className={`px-4 py-2 text-sm font-medium ${timeRange === "month" ? "text-white bg-indigo-600" : "text-gray-900 bg-white hover:bg-gray-100"}`}>
+          <button
+            type="button"
+            onClick={() => setTimeRange("month")}
+            className={`px-4 py-2 text-sm font-medium ${
+              timeRange === "month" ? "text-white bg-indigo-600" : "text-gray-900 bg-white hover:bg-gray-100"
+            }`}
+          >
             Month
           </button>
-          <button type="button" onClick={() => setTimeRange("year")}
-            className={`px-4 py-2 text-sm font-medium rounded-r-lg ${timeRange === "year" ? "text-white bg-indigo-600" : "text-gray-900 bg-white hover:bg-gray-100"}`}>
+          <button
+            type="button"
+            onClick={() => setTimeRange("year")}
+            className={`px-4 py-2 text-sm font-medium rounded-r-lg ${
+              timeRange === "year" ? "text-white bg-indigo-600" : "text-gray-900 bg-white hover:bg-gray-100"
+            }`}
+          >
             Year
           </button>
         </div>
@@ -312,32 +360,43 @@ const Performance: React.FC = () => {
         </div>
       </div>
       
-      {/* Performance Overview - ADJUSTED HEIGHT HISTOGRAM SECTION */}
+      {/* Performance Overview (Histogram) */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-lg font-semibold mb-4">Technician Performance Overview</h2>
         {techPerformance.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No technician data available for the selected time period</p>
         ) : (
           <div>
-            {/* Modified histogram with improved spacing, alignment, and adjusted height */}
             <div className="flex flex-col border-l border-b border-gray-300 h-64 pt-2 mb-4 relative overflow-x-auto pb-10">
-              <div className="absolute bottom-10 left-0 w-full flex items-end" style={{ minWidth: `${techPerformance.length * 80}px` }}>
+              <div
+                className="absolute bottom-10 left-0 w-full flex items-end"
+                style={{ minWidth: `${techPerformance.length * 80}px` }}
+              >
                 {techPerformance.map((tech, index) => {
                   const barHeight = maxCompletedCount > 0 
                     ? Math.max((tech.completedCount / maxCompletedCount) * 140, tech.completedCount > 0 ? 20 : 5) 
                     : 0;
                   return (
-                    <div key={index} className="flex flex-col items-center mx-3" style={{ width: '70px', minWidth: '70px' }}>
+                    <div
+                      key={index}
+                      className="flex flex-col items-center mx-3"
+                      style={{ width: '70px', minWidth: '70px' }}
+                    >
                       <div className="text-xs font-medium text-gray-700 mb-2">
                         {tech.completedCount}
                       </div>
                       <div
-                        className={`w-full rounded-t-sm ${tech.completedCount > 0 ? 'bg-green-600' : 'bg-gray-200'}`}
+                        className={`w-full rounded-t-sm ${
+                          tech.completedCount > 0 ? 'bg-green-600' : 'bg-gray-200'
+                        }`}
                         style={{ height: `${barHeight}px`, minHeight: '4px' }}
                       ></div>
-                      <div className="mt-2 text-xs text-gray-700 truncate w-full text-center" title={tech.technicianName}>
-                        {tech.technicianName.length > 10 
-                          ? `${tech.technicianName.substring(0, 8)}...` 
+                      <div
+                        className="mt-2 text-xs text-gray-700 truncate w-full text-center"
+                        title={tech.technicianName}
+                      >
+                        {tech.technicianName.length > 10
+                          ? `${tech.technicianName.substring(0, 8)}...`
                           : tech.technicianName}
                       </div>
                     </div>
@@ -349,24 +408,39 @@ const Performance: React.FC = () => {
         )}
         <div className="text-center">
           <p className="text-sm text-gray-500">
-            Performance data for the {timeRange === 'day' ? 'current day' : timeRange === 'week' ? 'past week' : timeRange === 'month' ? 'past month' : 'past year'}
+            Performance data for the{" "}
+            {timeRange === "day"
+              ? "current day"
+              : timeRange === "week"
+              ? "past week"
+              : timeRange === "month"
+              ? "past month"
+              : "past year"}
           </p>
         </div>
       </div>
       
-      {/* Detailed Performance - WITH DYNAMIC COLUMN HEADER */}
+      {/* Detailed Performance */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 border-b">
           <h2 className="text-lg font-semibold">Detailed Performance</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+            <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Technician</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orders Completed</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{getAvgOrdersColumnText()}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Workload</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Technician
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Orders Completed
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {getAvgOrdersColumnText()}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Current Workload
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -379,17 +453,19 @@ const Performance: React.FC = () => {
               ) : (
                 techPerformance.map((tech, index) => {
                   const currentWorkload = getCurrentWorkload(tech.technicianId);
-                  
+
                   // Calculate average orders per day based on time range
-                  const daysInPeriod = timeRange === 'day' ? 1 
-                    : timeRange === 'week' ? 7 
-                    : timeRange === 'month' ? 30 
-                    : 365;
-                  
-                  const avgOrdersPerDay = tech.completedCount > 0 
-                    ? (tech.completedCount / daysInPeriod).toFixed(1)
-                    : '0';
-                  
+                  const daysInPeriod =
+                    timeRange === 'day'   ? 1 :
+                    timeRange === 'week'  ? 7 :
+                    timeRange === 'month' ? 30 :
+                    365;
+
+                  const avgOrdersPerDay =
+                    tech.completedCount > 0
+                      ? (tech.completedCount / daysInPeriod).toFixed(1)
+                      : '0';
+
                   return (
                     <tr key={index}>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -416,7 +492,7 @@ const Performance: React.FC = () => {
   );
 };
 
-// Users icon component
+// Simple Users icon for the stats card
 const Users = (props) => {
   return (
     <svg

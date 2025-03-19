@@ -133,7 +133,9 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   // Derive filtered order lists for QueueManagement
   const pendingOrders = useMemo(() => 
-    repairOrders.filter(order => order.status === 'pending'), 
+    repairOrders.filter(order => 
+      order.status === 'pending'
+    ), 
     [repairOrders]
   );
   
@@ -199,7 +201,7 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
       const { data, error } = await supabase
         .from('repair_assignments')
         .select('*');
-      
+        
       if (error) {
         console.error('Error fetching repair assignments:', {
           message: error.message,
@@ -277,7 +279,7 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
         priority_type: data.priorityType,
         status: data.status || 'pending',
         difficulty_level: data.difficulty_level || 1,
-        dealership_id: data.dealership_id, // Add this line!
+        dealership_id: data.dealership_id || userDealershipId, // Use context's dealership id if missing
         // Add other fields as needed
       };
       
@@ -659,14 +661,22 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   // Check if a technician can request a new order
   const canRequestNewOrder = (technicianId: string): boolean => {
+    console.log("TESTINGTESTINGTESING:", userDealershipId)
     // You can customize this logic based on your requirements
     const activeOrderCount = technicianActiveOrderCount(technicianId);
+    console.log("active order count testing:", activeOrderCount)
+
     const maxAllowedOrders = 5; // Example: set a maximum number of concurrent orders
+    console.log("testing TRUE OR FALSE",activeOrderCount < maxAllowedOrders && pendingOrders.length > 0)
     return activeOrderCount < maxAllowedOrders && pendingOrders.length > 0;
   };
 
+
+  console.log("userDealershipId:", userDealershipId)
 // Updated getNextRepairOrder function that respects skill levels
 const getNextRepairOrder = async (technicianId: string): Promise<boolean> => {
+  console.log("Technician ID passed to getNextRepairOrder:", technicianId);
+
   try {
     console.log(`🔍 Checking for next repair order for technician: ${technicianId}`);
 
@@ -697,6 +707,7 @@ const getNextRepairOrder = async (technicianId: string): Promise<boolean> => {
       .from("repair_orders")
       .select("*")
       .eq("status", "pending")
+      .eq("dealership_id", userDealershipId)         // <-- Filter by dealership
       .lte("difficulty_level", techSkillLevel) // Only orders with difficulty <= tech skill
       .order("priority", { ascending: true }) // Highest priority first (WAIT=1, VALET=2, LOANER=3)
       .order("created_at", { ascending: true }); // Oldest first

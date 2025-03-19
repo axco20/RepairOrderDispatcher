@@ -71,6 +71,7 @@ const Orders: React.FC = () => {
     difficulty_level: 1, // Default difficulty level
     status: "pending" as "pending" | "in_progress" | "completed",
     assignedTo: "",
+    
   });
   // Assignment modal state – note that we replace the plain input with a react-select state
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -81,18 +82,48 @@ const Orders: React.FC = () => {
   // Fetch technicians on mount
   useEffect(() => {
     const fetchTechnicians = async () => {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("role", "technician");
-      if (error) {
-        console.error("Error fetching technicians:", error);
-      } else if (data) {
-        setTechnicians(data);
+      try {
+        // 1. Get the currently authenticated user
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData?.user?.id) {
+          console.error("No current user found:", userError);
+          return;
+        }
+  
+        // 2. Fetch the dealership_id for this admin
+        const { data: adminData, error: adminError } = await supabase
+          .from("users")
+          .select("dealership_id")
+          .eq("auth_id", userData.user.id)
+          .single();
+  
+        if (adminError || !adminData?.dealership_id) {
+          console.error("Error retrieving dealership_id:", adminError);
+          return;
+        }
+  
+        // 3. Fetch technicians who share that dealership_id
+        const { data, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("role", "technician")
+          .eq("dealership_id", adminData.dealership_id);
+  
+        if (error) {
+          console.error("Error fetching technicians:", error);
+          return;
+        }
+  
+        // Now you only have technicians from the same dealership
+        setTechnicians(data || []);
+      } catch (err) {
+        console.error("Error fetching technicians:", err);
       }
     };
+  
     fetchTechnicians();
   }, []);
+  
 
   // Refresh orders on mount
   useEffect(() => {

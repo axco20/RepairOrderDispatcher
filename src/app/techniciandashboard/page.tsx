@@ -40,41 +40,53 @@ export default function TechnicianDashboard() {
       if (!currentUser) return;
       
       try {
-        // Get technician skill level
+        // 1) Fetch skill_level AND dealership_id from the "users" table
         const { data, error } = await supabase
           .from("users")
-          .select("skill_level")
+          .select("skill_level, dealership_id")
           .eq("auth_id", currentUser.id)
           .single();
         
         if (error) {
-          console.error("Error fetching technician skill level:", error);
+          console.error("Error fetching technician skill/dealership:", error);
           return;
         }
         
         const skillLevel = data?.skill_level || 1;
         setTechSkillLevel(skillLevel);
+  
+        const userDealershipId = data?.dealership_id;
+        if (!userDealershipId) {
+          console.error("No dealership_id found for current technician.");
+          return;
+        }
         
-        // Get count of orders available for this technician's skill level
+        // 2) Filter repair_orders by:
+        //    - pending status
+        //    - difficulty_level <= skillLevel
+        //    - matching dealership_id
         const { data: matchingOrders, error: countError } = await supabase
           .from("repair_orders")
           .select("id")
           .eq("status", "pending")
-          .lte("difficulty_level", skillLevel);
-          
+          .lte("difficulty_level", skillLevel)
+          .eq("dealership_id", userDealershipId);
+  
         if (countError) {
           console.error("Error counting available orders:", countError);
           return;
         }
         
+        // 3) Update availableOrdersCount
         setAvailableOrdersCount(matchingOrders?.length || 0);
       } catch (err) {
         console.error("Error in fetchTechDetails:", err);
       }
     };
-
+  
     fetchTechDetails();
   }, [currentUser, pendingOrders]);
+  
 
   // FIX: Only run once on mount instead of on every render
   useEffect(() => {
