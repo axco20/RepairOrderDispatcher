@@ -230,22 +230,44 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
       return [];
     }
   };
+useEffect(() => {
+  // Only responsible for fetching and setting dealership ID
+  const getDealership = async () => {
+    setLoading(true);
+    try {
+      const dealershipId = await fetchUserDealershipId();
+      setUserDealershipId(dealershipId);
+    } catch (err) {
+      console.error("Error fetching dealership:", err);
+      setError("Failed to load dealership info");
+    } finally {
+      setLoading(false);
+    }
+  };
+  getDealership();
+}, []);
 
-  // Load data on initial render
- useEffect(() => {
-  const loadData = async () => {
-    const dealershipId = await fetchUserDealershipId();
-    if (dealershipId) {
+useEffect(() => {
+  const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    if (session?.user) {
+      // Now we know the user is truly logged in
+      const dealershipId = await fetchUserDealershipId();
       setUserDealershipId(dealershipId);
       await refreshOrders();
       await fetchAssignments();
     } else {
-      setError('Failed to determine user dealership');
+      setUserDealershipId(null);
+      setRepairOrders([]);
     }
+  });
+
+  // Cleanup the listener
+  return () => {
+    authListener.subscription.unsubscribe();
   };
-  
-  loadData();
 }, []);
+
+
 
   // Get a single repair order
   const getRepairOrder = async (id: string): Promise<RepairOrder | null> => {
