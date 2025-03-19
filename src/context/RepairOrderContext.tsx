@@ -153,10 +153,17 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
   const refreshOrders = async () => {
     try {
       setLoading(true);
+      
+      // Don't proceed if dealership ID is not yet available
+      if (!userDealershipId) {
+        console.log("Cannot fetch orders - dealership ID not yet available");
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('repair_orders')
         .select('*')
-        .eq('dealership_id', userDealershipId) // Filter by dealership_id
+        .eq('dealership_id', userDealershipId)
         .order('created_at', { ascending: false });
       
       if (error) {
