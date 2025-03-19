@@ -540,7 +540,7 @@ const TeamMembers: React.FC = () => {
                 </p>
               </div>
               <p className="text-gray-300 text-sm">
-                This action cannot be undone. The user will lose all access to your team's system.
+                This action cannot be undone. The user will lose all access to your team&apos;s system.
               </p>
             </div>
             <div className="flex justify-center space-x-4">
