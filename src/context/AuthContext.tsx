@@ -33,6 +33,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Function to update user's last activity timestamp
+  const updateLastActivity = async () => {
+    if (currentUser) {
+      try {
+        const { error } = await supabase
+          .from("users")
+          .update({ last_activity: new Date().toISOString() })
+          .eq("auth_id", currentUser.id);
+        
+        if (error) {
+          console.error("Error updating last activity:", error);
+        }
+      } catch (err) {
+        console.error("Failed to update activity status:", err);
+      }
+    }
+  };
+
+  // Set up tracking for user activity
+  useEffect(() => {
+    if (currentUser) {
+      // Update immediately on login
+      updateLastActivity();
+      
+      // Set interval for regular updates (every 3 minutes)
+      const interval = setInterval(updateLastActivity, 3 * 60 * 1000);
+      
+      // Also update on user interaction
+      const handleUserActivity = () => {
+        updateLastActivity();
+      };
+      
+      // Add event listeners for user activity
+      window.addEventListener("click", handleUserActivity);
+      window.addEventListener("keypress", handleUserActivity);
+      window.addEventListener("scroll", handleUserActivity);
+      
+      // Clean up
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener("click", handleUserActivity);
+        window.removeEventListener("keypress", handleUserActivity);
+        window.removeEventListener("scroll", handleUserActivity);
+      };
+    }
+  }, [currentUser]);
+
   // ✅ Check for an active session on page load
   useEffect(() => {
     const fetchUser = async () => {
@@ -53,6 +100,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: userData.role,
           });
           setIsAdmin(userData.role === "admin");
+          
+          // Update activity timestamp on login
+          updateLastActivity();
         }
       }
     };
@@ -120,6 +170,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name: userData.name,
       role: userData.role,
     });
+    
+    setIsAdmin(userData.role === "admin");
+
+    // Update activity timestamp on login
+    await updateLastActivity();
 
     return true; // ✅ Return true on success
   };

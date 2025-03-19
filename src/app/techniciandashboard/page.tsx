@@ -13,6 +13,7 @@ import { toast } from "react-toastify";
 import { useRealTimeOrders } from "@/lib/useRealTimeOrders";
 import { BarChart2 } from "lucide-react"; 
 import { supabase } from "@/lib/supabaseClient";
+// Removed the TechnicianWorkload import
 
 export default function TechnicianDashboard() {
   const { currentUser, logout } = useAuth();
@@ -27,7 +28,8 @@ export default function TechnicianDashboard() {
     refreshOrders
   } = useRepairOrders();
 
-  useRealTimeOrders(refreshOrders); 
+  // Call useRealTimeOrders to set up subscriptions
+  useRealTimeOrders(refreshOrders);
   
   const [activePage, setActivePage] = useState<"Home" | "ActiveOrders"| "OnHoldOrders" | "CompletedOrders" | "Help">("Home");
   const [isAssigningOrder, setIsAssigningOrder] = useState(false);
@@ -170,6 +172,8 @@ export default function TechnicianDashboard() {
         </div>
         
         <main className="flex-1 overflow-y-auto p-6 bg-gray-100">
+          {/* Removed TechnicianWorkload component */}
+          
           {/* Render different main content depending on activePage */}
           {activePage === "Home" && (
             <Home 

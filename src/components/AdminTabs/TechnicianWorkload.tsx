@@ -7,6 +7,7 @@ interface Technician {
   name: string;
   email: string;
   role: string;
+  last_activity?: string; // Added field to track when user was last active
 }
 
 export interface RepairOrder {
@@ -56,9 +57,15 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
       return [];
     }
 
+    // Filter out technicians who haven't been active in the last 5 hours
+    const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
+    const activeTechnicians = technicians.filter(tech => 
+      tech.last_activity && tech.last_activity > fiveHoursAgo
+    );
+
     // Create a map for quick technician lookup by both id and auth_id
     const techMap = new Map<string, Technician>();
-    technicians.forEach(tech => {
+    activeTechnicians.forEach(tech => {
       techMap.set(tech.id, tech);
       if (tech.auth_id) techMap.set(tech.auth_id, tech);
     });
@@ -70,8 +77,8 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
       orders: string[]
     }>();
     
-    // Initialize all technicians with 0 active orders
-    technicians.forEach(tech => {
+    // Initialize all active technicians with 0 active orders
+    activeTechnicians.forEach(tech => {
       workloadMap.set(tech.id, {
         tech,
         count: 0,
@@ -223,7 +230,8 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
       
       <div className="mt-4 pt-4 border-t border-gray-100">
         <p className="text-xs text-gray-500">
-          Showing active workload for all {technicianWorkloads.length} technicians. Only counting orders with 'pending' or 'in_progress' status.
+          Showing active workload for {technicianWorkloads.length} technicians who were active in the last 5 hours. 
+          Only counting orders with 'pending' or 'in_progress' status.
         </p>
       </div>
     </div>

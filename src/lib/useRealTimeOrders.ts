@@ -1,7 +1,16 @@
-import { useEffect } from "react";
-import { supabase } from "@/lib/supabaseClient";  
+"use client";
 
-export const useRealTimeOrders = (refreshOrders: () => void) => {
+import { useContext, useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { RealTimeOrdersContext } from "@/context/RealTimeOrdersProvider";
+
+// This is the new hook that returns the context including activeTechnicians
+export const useRealTimeOrders = () => {
+  return useContext(RealTimeOrdersContext);
+};
+
+// This is your original hook functionality, renamed to not conflict
+export const useRealTimeOrdersSubscription = (refreshOrders: () => void) => {
   useEffect(() => {
     const subscription = supabase
       .channel('repair_orders')
