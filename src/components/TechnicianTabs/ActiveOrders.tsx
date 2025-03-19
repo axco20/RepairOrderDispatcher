@@ -1,42 +1,64 @@
 "use client";
 //activeOrders.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRepairOrders } from "@/context/RepairOrderContext";
-import { CheckCircle, Clock, AlertTriangle, XCircle } from "lucide-react";
+import { CheckCircle, Clock, AlertTriangle, Pause } from "lucide-react";
 import { toast } from "react-toastify";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function ActiveOrders() {
   const { currentUser } = useAuth();
   const { technicianOrders, completeRepairOrder, refreshOrders } = useRepairOrders();
-  const [isCompletingOrder, setIsCompletingOrder] = useState<string | null>(null);
+  const [isUpdatingOrder, setIsUpdatingOrder] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null); // State for confirmation modal
+  const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null); // State for completion confirmation modal
+  
+  // New state for hold functionality
+  const [holdOrderId, setHoldOrderId] = useState<string | null>(null); // State for hold modal
+  const [holdReason, setHoldReason] = useState<string>(""); // State for hold reason
 
-  // Fetch and refresh orders
+  // Initial data load and set up refresh interval - with no dependencies
   useEffect(() => {
-    const loadOrders = async () => {
-      setRefreshing(true);
-      await refreshOrders();
-      setRefreshing(false);
-    };
-
-    loadOrders();
-
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(loadOrders, 30000);
+    let isMounted = true;
     
-    return () => clearInterval(interval);
-  }, []);
+    const loadData = async () => {
+      if (!isMounted) return;
+      setRefreshing(true);
+      
+      try {
+        await refreshOrders();
+      } catch (err) {
+        console.error("Error refreshing orders:", err);
+      } finally {
+        if (isMounted) {
+          setRefreshing(false);
+        }
+      }
+    };
+    
+    // Initial load
+    loadData();
+    
+    // Set up interval for periodic refresh
+    const interval = setInterval(() => {
+      if (isMounted) {
+        loadData();
+      }
+    }, 30000);
+    
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []); // Empty dependency array - only run once on mount
 
   if (!currentUser) return <p>Loading...</p>;
 
   const activeOrders = technicianOrders(currentUser.id).filter(
     (order) => order.status === "in_progress" && order.assignedTo === currentUser.id
   );
-
-  console.log("🛠 Filtered activeOrders:", activeOrders);
 
   // Handle confirming completion
   const handleConfirmComplete = (orderId: string) => {
@@ -46,40 +68,73 @@ export default function ActiveOrders() {
   // Proceed with completion
   const confirmCompletion = async () => {
     if (confirmingOrderId) {
-      setIsCompletingOrder(confirmingOrderId);
-      const success = await completeRepairOrder(confirmingOrderId);
+      setIsUpdatingOrder(confirmingOrderId);
       
-      if (success) {
-        toast.success("Repair order marked as complete!");
-        await refreshOrders();
-      } else {
-        toast.error("Failed to complete repair order");
+      try {
+        const success = await completeRepairOrder(confirmingOrderId);
+        
+        if (success) {
+          toast.success("Repair order marked as complete!");
+          // Manually refresh orders instead of relying on context
+          setRefreshing(true);
+          await refreshOrders();
+          setRefreshing(false);
+        } else {
+          toast.error("Failed to complete repair order");
+        }
+      } catch (err) {
+        console.error("Error completing order:", err);
+        toast.error("An error occurred while completing the order");
+      } finally {
+        setConfirmingOrderId(null);
+        setIsUpdatingOrder(null);
       }
-      
-      setConfirmingOrderId(null);
-      setIsCompletingOrder(null);
     }
   };
 
-  // Handle placing an order on hold
-  const handleOnHold = async (orderId: string) => {
+  // Show the hold reason modal
+  const handleShowHoldModal = (orderId: string) => {
+    setHoldOrderId(orderId);
+    setHoldReason(""); // Reset reason when opening the modal
+  };
+
+  // Handle placing an order on hold with reason
+  const confirmHold = async () => {
+    if (!holdOrderId) return;
+    
+    if (!holdReason.trim()) {
+      toast.error("Please provide a reason for placing this order on hold");
+      return;
+    }
+
     try {
-      setIsCompletingOrder(orderId);
+      setIsUpdatingOrder(holdOrderId);
 
       const { error } = await supabase
         .from("repair_orders")
-        .update({ status: "on_hold" })
-        .eq("id", orderId);
+        .update({ 
+          status: "on_hold",
+          on_hold_description: holdReason.trim() 
+        })
+        .eq("id", holdOrderId);
 
       if (error) throw error;
 
       toast.success("Repair order marked as on hold!");
+      
+      // Manually refresh orders
+      setRefreshing(true);
       await refreshOrders();
+      setRefreshing(false);
+      
+      // Clear the modal state
+      setHoldOrderId(null);
+      setHoldReason("");
     } catch (error) {
       console.error("Error updating order status:", error);
       toast.error("An error occurred while updating the order status.");
     } finally {
-      setIsCompletingOrder(null);
+      setIsUpdatingOrder(null);
     }
   };
 
@@ -118,7 +173,7 @@ export default function ActiveOrders() {
                   const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
                   const elapsedHours = Math.floor(elapsedMinutes / 60);
                   
-                  let timeElapsed = elapsedHours > 0 
+                  const timeElapsed = elapsedHours > 0 
                     ? `${elapsedHours}h ${elapsedMinutes % 60}m` 
                     : `${elapsedMinutes}m`;
 
@@ -151,16 +206,18 @@ export default function ActiveOrders() {
                           <button
                             onClick={() => handleConfirmComplete(order.id)}
                             className="flex items-center px-4 py-2 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 transition-all duration-300"
+                            disabled={isUpdatingOrder === order.id}
                           >
                             <CheckCircle size={18} className="mr-2" />
                             Mark Complete
                           </button>
 
                           <button
-                            onClick={() => handleOnHold(order.id)}
-                            className="flex items-center px-4 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all duration-300"
+                            onClick={() => handleShowHoldModal(order.id)}
+                            className="flex items-center px-4 py-2 rounded-lg font-medium bg-orange-600 text-white hover:bg-orange-700 transition-all duration-300"
+                            disabled={isUpdatingOrder === order.id}
                           >
-                            <CheckCircle size={18} className="mr-2" />
+                            <Pause size={18} className="mr-2" />
                             Place On Hold
                           </button>
                         </div>
@@ -174,15 +231,49 @@ export default function ActiveOrders() {
         </div>
       )}
 
-      {/* Confirmation Modal */}
+      {/* Completion Confirmation Modal */}
       {confirmingOrderId && (
-        <div className="fixed inset-0 flex items-center justify-center backdrop-blur">
-        <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur bg-black/30 bg-opacity-50 z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
             <h3 className="text-lg font-semibold text-gray-800">Confirm Completion</h3>
             <p className="text-gray-600 mt-2">Are you sure you want to complete this order?</p>
             <div className="flex justify-end space-x-4 mt-4">
               <button onClick={() => setConfirmingOrderId(null)} className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
               <button onClick={confirmCompletion} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hold Reason Modal */}
+      {holdOrderId && (
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur bg-black/30 bg-opacity-50 z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+            <h3 className="text-lg font-semibold text-gray-800">Place Order On Hold</h3>
+            <p className="text-gray-600 mt-2 mb-3">Please provide a reason for placing this order on hold:</p>
+            
+            <textarea 
+              value={holdReason}
+              onChange={(e) => setHoldReason(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              placeholder="Enter reason here..."
+              rows={4}
+            />
+            
+            <div className="flex justify-end space-x-4 mt-4">
+              <button 
+                onClick={() => setHoldOrderId(null)} 
+                className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmHold} 
+                className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
+                disabled={!holdReason.trim()}
+              >
+                Confirm
+              </button>
             </div>
           </div>
         </div>

@@ -7,7 +7,6 @@ import {
   Tag,
   Check,
   Plus,
-  Trash2,
   Settings,
   CheckCircle,
   AlertTriangle,
@@ -17,6 +16,7 @@ import { useRepairOrders } from "@/context/RepairOrderContext";
 import { toast } from "react-toastify";
 import { supabase } from "@/lib/supabaseClient";
 import Select from "react-select";
+import OrdersTable from "./RepairOrders/OrdersTable";
 
 // Define types for technicians and react-select options
 interface Technician {
@@ -25,26 +25,27 @@ interface Technician {
   name: string;
   email: string;
   role: string;
-  skill_level: number; // Added skill level
+  skill_level: number;
 }
 
 interface TechnicianOption {
   value: string;
   label: string;
-  skill_level: number; // Added skill level
+  skill_level: number;
 }
 
 interface RepairOrder {
   id: string;
   description?: string;
   orderDescription?: string;
-  status: "pending" | "in_progress" | "completed";
+  status: "pending" | "in_progress" | "completed" | "on_hold";
   priority?: number;
   priorityType?: string;
-  difficulty_level?: number; // Added difficulty level
+  difficulty_level?: number;
   createdAt?: string;
   completedAt?: string;
   assignedTo?: string;
+  on_hold_description?: string; // Added field for hold reason
 }
 
 const Orders: React.FC = () => {
@@ -66,17 +67,23 @@ const Orders: React.FC = () => {
   const [formData, setFormData] = useState({
     description: "",
     orderDescription: "",
-    priority: 1, // Keeping for backend compatibility
+    priority: 1,
     priorityType: "WAIT" as "WAIT" | "VALET" | "LOANER",
-    difficulty_level: 1, // Default difficulty level
-    status: "pending" as "pending" | "in_progress" | "completed",
+    difficulty_level: 1,
+    status: "pending" as "pending" | "in_progress" | "completed" | "on_hold",
     assignedTo: "",
   });
-  // Assignment modal state – note that we replace the plain input with a react-select state
+  
+  // Assignment modal state
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState("");
   const [selectedTechnicianOption, setSelectedTechnicianOption] =
     useState<TechnicianOption | null>(null);
+    
+  // Hold modal state
+  const [isHoldModalOpen, setIsHoldModalOpen] = useState(false);
+  const [holdOrderId, setHoldOrderId] = useState("");
+  const [holdReason, setHoldReason] = useState("");
 
   // Fetch technicians on mount
   useEffect(() => {
@@ -99,14 +106,14 @@ const Orders: React.FC = () => {
     refreshOrders();
   }, []);
 
-  // Helper to compute the active order count for a given technician (e.g. orders "in_progress")
+  // Helper to compute the active order count for a given technician
   const technicianActiveOrderCount = (techAuthId: string) => {
     return repairOrders.filter(
       (order) => order.assignedTo === techAuthId && order.status === "in_progress"
     ).length;
   };
 
-  // Compute technician options using the technicians state and active order counts
+  // Compute technician options
   const technicianOptions = useMemo(() => {
     return technicians.map((tech) => ({
       value: tech.auth_id,
@@ -115,7 +122,7 @@ const Orders: React.FC = () => {
     }));
   }, [technicians, repairOrders]);
 
-  // Helper to get technician name for display in the table
+  // Helper to get technician name for display
   const getTechnicianName = (authId?: string) => {
     if (!authId) return "Unassigned";
     const found = technicians.find((tech) => tech.auth_id === authId);
@@ -202,14 +209,14 @@ const Orders: React.FC = () => {
     }
   };
 
-  // Open the assign modal and clear any previous selection
+  // Open the assign modal
   const handleAssignOrder = (id: string, difficulty_level: number = 1) => {
     setCurrentOrderId(id);
     setSelectedTechnicianOption(null);
     setIsAssignModalOpen(true);
   };
 
-  // Handle assignment submission using the selected technician from react-select
+  // Handle assignment submission
   const handleAssignSubmit = async () => {
     if (!selectedTechnicianOption) {
       toast.error("❌ Please select a technician to assign this order to.");
@@ -223,7 +230,7 @@ const Orders: React.FC = () => {
       return;
     }
 
-    // Check if technician's skill level is sufficient for the order's difficulty
+    // Check if technician's skill level is sufficient
     if ((selectedTechnicianOption.skill_level || 1) < (currentOrder.difficulty_level || 1)) {
       toast.error(`❌ This technician (Level ${selectedTechnicianOption.skill_level}) doesn't have the required skill level (Level ${currentOrder.difficulty_level}) for this order.`);
       return;
@@ -241,6 +248,58 @@ const Orders: React.FC = () => {
       }
     } catch (error) {
       toast.error("❌ Error assigning order: " + error);
+    }
+  };
+
+  // Show the hold modal and gather reason
+  const handlePutOnHold = (id: string) => {
+    setHoldOrderId(id);
+    setHoldReason("");
+    setIsHoldModalOpen(true);
+  };
+
+  // Handle submit from hold modal
+  const handleHoldSubmit = async () => {
+    if (!holdReason.trim()) {
+      toast.error("❌ Please provide a reason for placing this order on hold.");
+      return;
+    }
+
+    try {
+      const updates = { 
+        status: "on_hold",
+        on_hold_description: holdReason.trim() 
+      };
+      
+      const result = await updateRepairOrder(holdOrderId, updates);
+      if (result) {
+        toast.success("✅ Order put on hold successfully!");
+        setIsHoldModalOpen(false);
+        setHoldReason("");
+      } else {
+        toast.error("❌ Failed to put order on hold.");
+      }
+    } catch (error) {
+      toast.error("❌ Error updating order: " + error);
+    }
+  };
+
+  // Handle resuming an on-hold order
+  const handleResumeOrder = async (id: string) => {
+    try {
+      const updates = { 
+        status: "in_progress",
+        on_hold_description: null // Clear the hold reason when resuming
+      };
+      
+      const result = await updateRepairOrder(id, updates);
+      if (result) {
+        toast.success("✅ Order resumed successfully!");
+      } else {
+        toast.error("❌ Failed to resume order.");
+      }
+    } catch (error) {
+      toast.error("❌ Error updating order: " + error);
     }
   };
 
@@ -268,6 +327,7 @@ const Orders: React.FC = () => {
   // Group orders by status and (for completed) sort by most recent
   const pendingOrders = filteredOrders.filter((o) => o.status === "pending");
   const inProgressOrders = filteredOrders.filter((o) => o.status === "in_progress");
+  const onHoldOrders = filteredOrders.filter((o) => o.status === "on_hold");
   const completedOrders = filteredOrders
     .filter((o) => o.status === "completed")
     .sort((a: RepairOrder, b: RepairOrder) => {
@@ -294,6 +354,13 @@ const Orders: React.FC = () => {
       color: "blue",
     },
     {
+      id: "on_hold",
+      label: "On Hold",
+      count: onHoldOrders.length,
+      icon: <AlertTriangle className="w-5 h-5" />,
+      color: "orange",
+    },
+    {
       id: "completed",
       label: "Completed",
       count: completedOrders.length,
@@ -308,10 +375,22 @@ const Orders: React.FC = () => {
         return pendingOrders;
       case "in_progress":
         return inProgressOrders;
+      case "on_hold":
+        return onHoldOrders;
       case "completed":
         return completedOrders;
       default:
         return pendingOrders;
+    }
+  };
+
+  // Helper to get badge color for difficulty level
+  const getDifficultyBadgeColor = (level: number) => {
+    switch(level) {
+      case 1: return "bg-green-100 text-green-800";
+      case 2: return "bg-yellow-100 text-yellow-800";
+      case 3: return "bg-red-100 text-red-800";
+      default: return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -355,16 +434,6 @@ const Orders: React.FC = () => {
       ...base,
       color: "#9CA3AF",
     }),
-  };
-
-  // Helper to get badge color for difficulty level
-  const getDifficultyBadgeColor = (level: number) => {
-    switch(level) {
-      case 1: return "bg-green-100 text-green-800";
-      case 2: return "bg-yellow-100 text-yellow-800";
-      case 3: return "bg-red-100 text-red-800";
-      default: return "bg-gray-100 text-gray-800";
-    }
   };
 
   return (
@@ -511,111 +580,32 @@ const Orders: React.FC = () => {
           </div>
         </div>
 
-        {/* Orders Table */}
-        <div className="rounded-lg shadow-sm bg-white overflow-hidden">
-          {loading ? (
-            <div className="text-center py-6">Loading repair orders...</div>
-          ) : error ? (
-            <div className="text-center py-6 text-red-600">{error}</div>
-          ) : getActiveOrders().length === 0 ? (
-            <div className="text-center py-6">
-              <p className="text-gray-500">No {activeTab.replace("_", " ")} orders found.</p>
-            </div>
-          ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Order ID
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Difficulty
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Submitted
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Assigned To
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {getActiveOrders().map((order) => (
-                  <tr key={order.id}>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {order.description || (order.id ? `#${order.id.substring(0, 6)}` : "N/A")}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span
-                        className={`flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${
-                          order.status === "pending"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : order.status === "in_progress"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-green-100 text-green-800"
-                        }`}
-                      >
-                        {order.status.replace("_", " ")}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span
-                        className={`flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${
-                          getDifficultyBadgeColor(order.difficulty_level || 1)
-                        }`}
-                      >
-                        <BarChart2 className="w-3 h-3" /> 
-                        Level {order.difficulty_level || 1}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                      {formatDate(order.createdAt)}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                      {order.assignedTo ? getTechnicianName(order.assignedTo) : "Unassigned"}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleAssignOrder(order.id, order.difficulty_level)}
-                          className="px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors duration-200 flex items-center gap-1"
-                          aria-label="Assign order"
-                        >
-                          Assign
-                        </button>
-                        <button
-                          onClick={() => handleDeleteOrder(order.id)}
-                          className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors duration-200"
-                          aria-label="Delete order"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+        {/* Orders Table Component */}
+        <OrdersTable 
+          loading={loading}
+          error={error}
+          activeTab={activeTab}
+          orders={getActiveOrders()}
+          getTechnicianName={getTechnicianName}
+          formatDate={formatDate}
+          handleAssignOrder={handleAssignOrder}
+          handleDeleteOrder={handleDeleteOrder}
+          handlePutOnHold={handlePutOnHold}
+          handleResumeOrder={handleResumeOrder}
+          getDifficultyBadgeColor={getDifficultyBadgeColor}
+        />
       </div>
 
       {/* Assignment Modal using React Select */}
       {isAssignModalOpen && (
         <div className="fixed inset-0 backdrop-blur bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-500 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium text-white-900 mb-4 flex items-center gap-2">
+          <div className="bg-gray-800 bg-opacity-90 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
               <Tag className="w-5 h-5 text-blue-500" />
               Assign Repair Order
             </h3>
             <div className="mb-4">
-              <label htmlFor="assignTo" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="assignTo" className="block text-sm font-medium text-gray-300 mb-1">
                 Assign to
               </label>
               <Select
@@ -628,7 +618,7 @@ const Orders: React.FC = () => {
                 isSearchable
                 styles={customSelectStyles}
               />
-              <p className="mt-2 text-xs text-gray-200">
+              <p className="mt-2 text-xs text-gray-300">
                 Note: Technicians can only be assigned to repair orders with a difficulty level 
                 equal to or below their skill level.
               </p>
@@ -636,7 +626,7 @@ const Orders: React.FC = () => {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setIsAssignModalOpen(false)}
-                className="px-3 py-1.5 border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 shadow-sm text-sm"
+                className="px-3 py-1.5 border border-gray-300 text-white font-medium rounded-md hover:bg-gray-700 shadow-sm text-sm"
               >
                 Cancel
               </button>
@@ -645,6 +635,46 @@ const Orders: React.FC = () => {
                 className="px-3 py-1.5 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 shadow-sm text-sm"
               >
                 Assign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hold Reason Modal */}
+      {isHoldModalOpen && (
+        <div className="fixed inset-0 backdrop-blur bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 bg-opacity-90 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              Place Order On Hold
+            </h3>
+            <div className="mb-4">
+              <label htmlFor="holdReason" className="block text-sm font-medium text-gray-300 mb-1">
+                Reason for Hold
+              </label>
+              <textarea
+                id="holdReason"
+                value={holdReason}
+                onChange={(e) => setHoldReason(e.target.value)}
+                placeholder="Please explain why this order is being placed on hold..."
+                rows={4}
+                className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500 text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setIsHoldModalOpen(false)}
+                className="px-3 py-1.5 border border-gray-300 text-white font-medium rounded-md hover:bg-gray-700 shadow-sm text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleHoldSubmit}
+                className="px-3 py-1.5 bg-orange-600 text-white font-medium rounded-md hover:bg-orange-700 shadow-sm text-sm"
+                disabled={!holdReason.trim()}
+              >
+                Confirm
               </button>
             </div>
           </div>

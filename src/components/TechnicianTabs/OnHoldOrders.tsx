@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRepairOrders } from "@/context/RepairOrderContext";
-import { CheckCircle, Clock, AlertTriangle } from "lucide-react";
+import { CheckCircle, Clock, AlertTriangle, Info } from "lucide-react";
 import { toast } from "react-toastify";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -12,6 +12,16 @@ export default function ActiveOrders() {
   const { technicianOrders, refreshOrders } =
     useRepairOrders();
   const [refreshing, setRefreshing] = useState(false);
+  const [showReasonId, setShowReasonId] = useState<string | null>(null);
+
+  // Helper function to get the hold reason
+  const getHoldReason = (order: any): string => {
+    // Check multiple possible fields for the hold reason
+    return order.on_hold_description 
+      || order.onHoldDescription 
+      || order.hold_reason 
+      || 'No specific reason provided';
+  };
 
   // FIX: Only run once on mount and do manual refresh after state changes
   useEffect(() => {
@@ -39,8 +49,7 @@ export default function ActiveOrders() {
 
   const handleReassign = async (orderId: string) => {
     try {
-
-      // Update order status to 'on_hold' in Supabase
+      // Update order status to 'in_progress' in Supabase
       const { error } = await supabase
         .from("repair_orders")
         .update({ status: "in_progress" })
@@ -86,6 +95,9 @@ export default function ActiveOrders() {
                     Description
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    On Hold Reason
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Assigned At
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -117,6 +129,9 @@ export default function ActiveOrders() {
                   // Show warning if over 2 hours
                   const showWarning = elapsedHours >= 2;
 
+                  // Get hold reason
+                  const holdReason = getHoldReason(order);
+
                   return (
                     <tr key={order.id}>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -132,6 +147,31 @@ export default function ActiveOrders() {
                         {order.orderDescription && (
                           <div className="text-xs text-gray-500 mt-1">
                             {order.orderDescription}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 relative">
+                        <div className="flex items-center">
+                          <span className="text-sm text-gray-500 truncate max-w-[200px]">
+                            {holdReason.length > 30 
+                              ? `${holdReason.substring(0, 30)}...` 
+                              : holdReason}
+                          </span>
+                          {holdReason.length > 30 && (
+                            <button 
+                              onClick={() => setShowReasonId(showReasonId === order.id ? null : order.id)}
+                              className="ml-2 text-blue-500 hover:text-blue-700"
+                            >
+                              <Info size={16} />
+                            </button>
+                          )}
+                        </div>
+                        
+                        {/* Full reason popup */}
+                        {showReasonId === order.id && (
+                          <div className="absolute z-10 bg-white border border-gray-200 rounded-md shadow-lg p-3 mt-1 w-72">
+                            <div className="text-sm font-medium mb-1">Hold Reason:</div>
+                            <div className="text-sm">{holdReason}</div>
                           </div>
                         )}
                       </td>
