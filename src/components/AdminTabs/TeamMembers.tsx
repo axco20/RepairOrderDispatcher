@@ -11,6 +11,7 @@ interface TeamMember {
   role: "admin" | "technician";
   created_at?: string;
   skill_level?: number;
+  dealership_id?: string; // if present in your DB schema
 }
 
 const TeamMembers: React.FC = () => {
@@ -30,23 +31,52 @@ const TeamMembers: React.FC = () => {
     fetchMembers();
   }, []);
 
+  /**
+   * Fetch only the users who match the current admin's dealership_id
+   */
   const fetchMembers = async () => {
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      // 1. Get the currently authenticated user from Supabase
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user?.id) {
+        console.error("Error fetching current user or no user ID found:", userError);
+        return;
+      }
 
-    if (error) {
-      console.error("Error fetching team members:", error);
-      return;
-    }
+      // 2. Look up that user's dealership_id in the "users" table
+      const { data: adminData, error: adminError } = await supabase
+        .from("users")
+        .select("dealership_id")
+        .eq("auth_id", userData.user.id)
+        .single();
 
-    if (data) {
-      console.log("Fetched members:", data);
-      setMembers(data);
+      if (adminError || !adminData?.dealership_id) {
+        console.error("Error fetching admin's dealership ID or none found:", adminError);
+        return;
+      }
+
+      // 3. Fetch all users from the same dealership
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("dealership_id", adminData.dealership_id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching team members:", error);
+        return;
+      }
+
+      if (data) {
+        console.log("Fetched members:", data);
+        setMembers(data);
+      }
+    } catch (err) {
+      console.error("Error in fetchMembers:", err);
     }
   };
 
+  // Filter by name or email
   const filteredMembers = members.filter(
     (m) =>
       m.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -56,86 +86,68 @@ const TeamMembers: React.FC = () => {
   const admins = filteredMembers.filter((m) => m.role === "admin");
   const technicians = filteredMembers.filter((m) => m.role === "technician");
 
-  // Open modal
-  const handleAddAdmin = () => {
-    setIsModalOpen(true);
-  };
-  const handleAddTechnician = () => {
-    setIsModal2Open(true);
-  };
+  // Open modals
+  const handleAddAdmin = () => setIsModalOpen(true);
+  const handleAddTechnician = () => setIsModal2Open(true);
 
+  // Send Email Invite
   const handleSendEmail = async (role: "admin" | "technician") => {
     console.log("Starting invite process with role:", role, "and email:", email);
-    
     if (!email) {
-      toast.error("❌ Please enter an email address.");
-      console.log("Error: Email is empty");
+      toast.error("Please enter an email address.");
       return;
     }
-    
+
     try {
-      // ✅ Fetch the current user's dealership ID
+      // Get the current user's auth ID
       const { data: userData, error: userError } = await supabase.auth.getUser();
-      console.log("User data from auth:", userData);
-      console.log("User error:", userError);
-      
       if (userError || !userData?.user?.id) {
-        console.log("Failed authentication check, user ID:", userData?.user?.id);
-        throw new Error("❌ Failed to retrieve authenticated user.");
+        throw new Error("Failed to retrieve authenticated user.");
       }
-      
-      // ✅ Use the correct user ID for lookup
-      console.log("Looking up user with auth_id:", userData.user.id);
+
+      // Lookup admin user in "users" table to get dealership_id
       const { data: adminData, error: adminError } = await supabase
         .from("users")
         .select("dealership_id")
         .eq("auth_id", userData.user.id)
         .single();
-      
-      console.log("Admin data:", adminData);
-      console.log("Admin error:", adminError);
-      console.log("Dealership ID:", adminData?.dealership_id);
-      
+
       if (adminError || !adminData?.dealership_id) {
-        console.log("Failed admin lookup check, dealership ID:", adminData?.dealership_id);
-        throw new Error("❌ Failed to retrieve dealership ID.");
+        throw new Error("Failed to retrieve dealership ID.");
       }
-      
-      // ✅ Generate invite link with dealership ID and role
-      const inviteUrl = `${window.location.origin}/signuppage?email=${encodeURIComponent(email)}&dealership_id=${adminData.dealership_id}&role=${role}`;
+
+      // Generate invite link
+      const inviteUrl = `${window.location.origin}/signuppage?email=${encodeURIComponent(
+        email
+      )}&dealership_id=${adminData.dealership_id}&role=${role}`;
       console.log("Generated invite URL:", inviteUrl);
-      
-      // ✅ Send email with the invite link
-      console.log("Sending email with payload:", { email, inviteUrl });
+
+      // Call your email API endpoint
       await fetch("/api/send-invite-email", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, inviteUrl }),
       });
-      
-      toast.success("✅ Invitation sent successfully!");
+
+      toast.success("Invitation sent successfully!");
       setIsModalOpen(false);
       setIsModal2Open(false);
       setEmail("");
     } catch (error) {
       console.error("Error sending invitation:", error);
-      toast.error("❌ Error sending invitation.");
+      toast.error("Error sending invitation.");
     }
   };
 
-  // Function to open skill level modal
+  // Edit Skill Level
   const handleEditSkillLevel = (technician: TeamMember) => {
     setSelectedTechnician(technician);
     setSkillLevel(technician.skill_level || 1);
     setIsSkillModalOpen(true);
   };
 
-  // Function to update skill level
   const handleUpdateSkillLevel = async () => {
     if (!selectedTechnician) return;
-
     try {
       const { error } = await supabase
         .from("users")
@@ -149,8 +161,8 @@ const TeamMembers: React.FC = () => {
       }
 
       // Update local state
-      setMembers(
-        members.map((member) =>
+      setMembers((prev) =>
+        prev.map((member) =>
           member.id === selectedTechnician.id
             ? { ...member, skill_level: skillLevel }
             : member
@@ -165,20 +177,17 @@ const TeamMembers: React.FC = () => {
     }
   };
 
-  // Function to open remove member confirmation modal
+  // Remove Member
   const handleRemoveMember = (member: TeamMember) => {
     setMemberToRemove(member);
     setIsRemoveModalOpen(true);
   };
 
-  // Function to execute the removal of a team member
   const confirmRemoveMember = async () => {
     if (!memberToRemove) return;
-    
     setIsRemoving(true);
-    
+
     try {
-      // 1. Remove the user from the database
       const { error } = await supabase
         .from("users")
         .delete()
@@ -190,10 +199,10 @@ const TeamMembers: React.FC = () => {
         return;
       }
 
-      // 2. Update local state by filtering out the removed member
-      setMembers(members.filter(member => member.id !== memberToRemove.id));
-      
-      toast.success(`✅ ${memberToRemove.name || memberToRemove.email} has been removed from your team`);
+      setMembers((prev) => prev.filter((m) => m.id !== memberToRemove.id));
+      toast.success(
+        `✅ ${memberToRemove.name || memberToRemove.email} has been removed from your team`
+      );
       setIsRemoveModalOpen(false);
       setMemberToRemove(null);
     } catch (error) {
@@ -204,7 +213,7 @@ const TeamMembers: React.FC = () => {
     }
   };
 
-  // Helper function to get skill level badge color
+  // Skill Level Badge Color
   const getSkillLevelColor = (level?: number) => {
     switch (level) {
       case 1:
@@ -218,7 +227,7 @@ const TeamMembers: React.FC = () => {
     }
   };
 
-  // Helper function to get skill level label
+  // Skill Level Label
   const getSkillLevelLabel = (level?: number) => {
     switch (level) {
       case 1:
@@ -243,9 +252,9 @@ const TeamMembers: React.FC = () => {
         </div>
         <input
           type="text"
-          className="block w-full pl-10 pr-3 py-2 border border-gray-300 
-                     rounded-md leading-5 bg-white placeholder-gray-500 
-                     focus:outline-none focus:ring-indigo-500 
+          className="block w-full pl-10 pr-3 py-2 border border-gray-300
+                     rounded-md leading-5 bg-white placeholder-gray-500
+                     focus:outline-none focus:ring-indigo-500
                      focus:border-indigo-500 sm:text-sm"
           placeholder="Search team members..."
           value={searchQuery}
@@ -259,11 +268,10 @@ const TeamMembers: React.FC = () => {
           <h2 className="text-lg font-semibold text-gray-700 border-b pb-2">
             Admins
           </h2>
-          {/* Add Admin Button */}
           <button
             onClick={handleAddAdmin}
-            className="px-3 py-1 bg-indigo-600 text-white text-sm font-medium 
-                       rounded-md hover:bg-indigo-700 focus:outline-none 
+            className="px-3 py-1 bg-indigo-600 text-white text-sm font-medium
+                       rounded-md hover:bg-indigo-700 focus:outline-none
                        focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
             Add Admin
@@ -278,7 +286,7 @@ const TeamMembers: React.FC = () => {
               >
                 <div className="flex items-center">
                   <div
-                    className="w-10 h-10 rounded-full bg-indigo-100 
+                    className="w-10 h-10 rounded-full bg-indigo-100
                                flex items-center justify-center text-indigo-800 font-bold"
                   >
                     {admin.name ? admin.name.charAt(0).toUpperCase() : "A"}
@@ -299,10 +307,10 @@ const TeamMembers: React.FC = () => {
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
-                  
+
                   {/* Role Badge */}
                   <span
-                    className="px-2 py-1 text-xs font-semibold text-orange-800 
+                    className="px-2 py-1 text-xs font-semibold text-orange-800
                               bg-orange-100 rounded-full"
                   >
                     Admin
@@ -324,8 +332,8 @@ const TeamMembers: React.FC = () => {
           </h2>
           <button
             onClick={handleAddTechnician}
-            className="px-3 py-1 bg-indigo-600 text-white text-sm font-medium 
-                       rounded-md hover:bg-indigo-700 focus:outline-none 
+            className="px-3 py-1 bg-indigo-600 text-white text-sm font-medium
+                       rounded-md hover:bg-indigo-700 focus:outline-none
                        focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
             Add Technician
@@ -340,7 +348,7 @@ const TeamMembers: React.FC = () => {
               >
                 <div className="flex items-center">
                   <div
-                    className="w-10 h-10 rounded-full bg-blue-100 
+                    className="w-10 h-10 rounded-full bg-blue-100
                                flex items-center justify-center text-blue-800 font-bold"
                   >
                     {tech.name ? tech.name.charAt(0).toUpperCase() : "T"}
@@ -354,11 +362,15 @@ const TeamMembers: React.FC = () => {
                 </div>
                 <div className="flex items-center space-x-3">
                   {/* Skill Level Badge */}
-                  <div className={`flex items-center px-2 py-1 text-xs font-medium rounded-full ${getSkillLevelColor(tech.skill_level)}`}>
+                  <div
+                    className={`flex items-center px-2 py-1 text-xs font-medium rounded-full ${getSkillLevelColor(
+                      tech.skill_level
+                    )}`}
+                  >
                     <BarChart2 className="w-3 h-3 mr-1" />
                     Level {tech.skill_level || 1} ({getSkillLevelLabel(tech.skill_level)})
                   </div>
-                  
+
                   {/* Edit Button */}
                   <button
                     onClick={() => handleEditSkillLevel(tech)}
@@ -367,7 +379,7 @@ const TeamMembers: React.FC = () => {
                   >
                     <Edit className="w-4 h-4" />
                   </button>
-                  
+
                   {/* Remove Button */}
                   <button
                     onClick={() => handleRemoveMember(tech)}
@@ -376,7 +388,7 @@ const TeamMembers: React.FC = () => {
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
-                  
+
                   {/* Role Badge */}
                   <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full">
                     Technician
@@ -390,7 +402,7 @@ const TeamMembers: React.FC = () => {
         )}
       </div>
 
-      {/* Skill Level Information */}
+      {/* Skill Level Info */}
       <div className="mt-8 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-md">
         <h3 className="text-md font-semibold text-blue-900 flex items-center">
           <BarChart2 className="w-5 h-5 mr-2" />
@@ -402,13 +414,13 @@ const TeamMembers: React.FC = () => {
         <ul className="mt-2 ml-6 list-disc text-sm text-blue-800">
           <li>Level 1 (Basic): Can only work on Level 1 repair orders</li>
           <li>Level 2 (Intermediate): Can work on Level 1 and 2 repair orders</li>
-          <li>Level 3 (Advanced): Can work on all repair orders (Levels 1, 2, and 3)</li>
+          <li>Level 3 (Advanced): Can work on Levels 1, 2, and 3</li>
         </ul>
       </div>
 
       {/* Modal for Adding Admin */}
       {isModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur bg-opacity-50 z-50">
           <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
             <h2 className="text-lg font-bold text-white mb-4 text-center">
               Enter Admin Email
@@ -418,22 +430,21 @@ const TeamMembers: React.FC = () => {
               placeholder="example@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-2 border border-gray-600 bg-[#374151] text-white rounded-md mb-4 
-        focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full p-2 border border-gray-600 bg-[#374151] text-white rounded-md mb-4
+                         focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
-            {/* Centered Buttons with Even Spacing */}
             <div className="flex justify-center space-x-4">
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 
-          focus:outline-none focus:ring-2 focus:ring-gray-500"
+                className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600
+                           focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleSendEmail("admin")}
-                className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 
-          focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700
+                           focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 Send Email
               </button>
@@ -444,7 +455,7 @@ const TeamMembers: React.FC = () => {
 
       {/* Modal for Adding Technician */}
       {isModal2Open && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur bg-opacity-50 z-50">
           <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
             <h2 className="text-lg font-bold text-white mb-4 text-center">
               Enter Technician Email
@@ -454,22 +465,21 @@ const TeamMembers: React.FC = () => {
               placeholder="example@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-2 border border-gray-600 bg-[#374151] text-white rounded-md mb-4 
-        focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full p-2 border border-gray-600 bg-[#374151] text-white rounded-md mb-4
+                         focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
-            {/* Centered Buttons with Even Spacing */}
             <div className="flex justify-center space-x-4">
               <button
                 onClick={() => setIsModal2Open(false)}
-                className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 
-          focus:outline-none focus:ring-2 focus:ring-gray-500"
+                className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600
+                           focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleSendEmail("technician")}
-                className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 
-          focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700
+                           focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 Send Email
               </button>
@@ -480,23 +490,22 @@ const TeamMembers: React.FC = () => {
 
       {/* Modal for Editing Skill Level */}
       {isSkillModalOpen && selectedTechnician && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur bg-opacity-50 z-50">
           <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
             <h2 className="text-lg font-bold text-white mb-4 text-center">
               Edit Technician Skill Level
             </h2>
             <div className="mb-4">
               <p className="text-white text-sm mb-2">
-                Technician: <span className="font-medium">{selectedTechnician.name}</span>
+                Technician:{" "}
+                <span className="font-medium">{selectedTechnician.name}</span>
               </p>
-              <label className="block text-white text-sm mb-2">
-                Skill Level:
-              </label>
+              <label className="block text-white text-sm mb-2">Skill Level:</label>
               <select
                 value={skillLevel}
                 onChange={(e) => setSkillLevel(parseInt(e.target.value))}
                 className="w-full p-2 border border-gray-600 bg-[#374151] text-white rounded-md
-                focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               >
                 <option value={1}>Level 1 - Basic</option>
                 <option value={2}>Level 2 - Intermediate</option>
@@ -506,15 +515,15 @@ const TeamMembers: React.FC = () => {
             <div className="flex justify-center space-x-4">
               <button
                 onClick={() => setIsSkillModalOpen(false)}
-                className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 
-                focus:outline-none focus:ring-2 focus:ring-gray-500"
+                className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600
+                           focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
                 Cancel
               </button>
               <button
                 onClick={handleUpdateSkillLevel}
-                className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 
-                focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="px-4 py-2 w-28 rounded-md text-white bg-indigo-600 hover:bg-indigo-700
+                           focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 Save
               </button>
@@ -525,7 +534,7 @@ const TeamMembers: React.FC = () => {
 
       {/* Modal for Remove Member Confirmation */}
       {isRemoveModalOpen && memberToRemove && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur bg-opacity-50 z-50">
           <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
             <h2 className="text-lg font-bold text-white mb-4 text-center">
               Remove Team Member
@@ -536,7 +545,8 @@ const TeamMembers: React.FC = () => {
                   Are you sure you want to remove:
                 </p>
                 <p className="text-white font-medium mb-0">
-                  {memberToRemove.name || memberToRemove.email} <span className="text-sm font-normal">({memberToRemove.role})</span>
+                  {memberToRemove.name || memberToRemove.email}{" "}
+                  <span className="text-sm font-normal">({memberToRemove.role})</span>
                 </p>
               </div>
               <p className="text-gray-300 text-sm">
@@ -546,16 +556,16 @@ const TeamMembers: React.FC = () => {
             <div className="flex justify-center space-x-4">
               <button
                 onClick={() => setIsRemoveModalOpen(false)}
-                className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 
-                focus:outline-none focus:ring-2 focus:ring-gray-500"
+                className="px-4 py-2 w-28 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600
+                           focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmRemoveMember}
                 disabled={isRemoving}
-                className="px-4 py-2 w-28 rounded-md text-white bg-red-600 hover:bg-red-700 
-                focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="px-4 py-2 w-28 rounded-md text-white bg-red-600 hover:bg-red-700
+                           focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isRemoving ? "Removing..." : "Remove"}
               </button>

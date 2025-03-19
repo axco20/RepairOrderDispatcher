@@ -10,7 +10,6 @@ import {
   Trash2,
   Settings,
   CheckCircle,
-  AlertTriangle,
   BarChart2,
 } from "lucide-react";
 import { useRepairOrders } from "@/context/RepairOrderContext";
@@ -26,6 +25,7 @@ interface Technician {
   email: string;
   role: string;
   skill_level: number; // Added skill level
+  
 }
 
 interface TechnicianOption {
@@ -107,13 +107,42 @@ const Orders: React.FC = () => {
   };
 
   // Compute technician options using the technicians state and active order counts
+  useEffect(() => {
+    const fetchTechnicians = async () => {
+      // Get current user
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error("Error retrieving user:", userError);
+        return;
+      }
+      const currentUser = userData?.user;
+  
+      // Fetch only technicians for the current user's dealership
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("role", "technician")
+        .eq("dealership_id", currentUser?.id);
+  
+      if (error) {
+        console.error("Error fetching technicians:", error);
+      } else if (data) {
+        setTechnicians(data);
+      }
+    };
+  
+    fetchTechnicians();
+  }, []);
+  
+  // Now create a technicianOptions variable from the `technicians` array
   const technicianOptions = useMemo(() => {
     return technicians.map((tech) => ({
       value: tech.auth_id,
-      label: `${tech.name} (Level ${tech.skill_level}, ${technicianActiveOrderCount(tech.auth_id)} active)`,
+      label: `${tech.name} (Level ${tech.skill_level})`,
       skill_level: tech.skill_level,
     }));
-  }, [technicians, repairOrders]);
+  }, [technicians]);
+  
 
   // Helper to get technician name for display in the table
   const getTechnicianName = (authId?: string) => {

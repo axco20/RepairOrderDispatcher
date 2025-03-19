@@ -1,7 +1,10 @@
-import React, { FC } from 'react';
-import { Wrench } from 'lucide-react';
-import NavLinks from '../common/NavLinks';
-import { PageTab } from '../../types';
+"use client"; // Needed for client-side navigation in Next.js
+
+import React, { FC } from "react";
+import { useRouter } from "next/navigation";
+import { Wrench } from "lucide-react";
+import NavLinks from "../common/NavLinks";
+import { PageTab } from "../../types";
 
 interface HeaderProps {
   activeTab: PageTab;
@@ -9,23 +12,22 @@ interface HeaderProps {
   onLogin: () => void;
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (isOpen: boolean) => void;
-  onSignup?: () => void; // Add this new prop
+  onSignup?: () => void;
 }
 
 const Header: FC<HeaderProps> = ({
   activeTab,
   handleNavigation,
-  onLogin,
   mobileMenuOpen,
   setMobileMenuOpen,
-  onSignup // Destructure the new prop
+  onSignup,
 }) => {
-  
+  const router = useRouter();
+
   // Function to handle signup and redirect
   const handleSignup = () => {
-    // You can redirect to your signup page
-    window.location.href = "http://localhost:3000/signuppage";
-    
+    router.push("/signuppage");
+
     // Or call the provided onSignup function if it exists
     if (onSignup) {
       onSignup();
@@ -33,10 +35,9 @@ const Header: FC<HeaderProps> = ({
   };
 
   const handleLogin = () => {
-
-    window.location.href = "http://localhost:3000/loginpage";
+    router.push("/loginpage");
   };
-  
+
   return (
     <header className="bg-white shadow-md">
       <div className="container mx-auto px-4 py-2 flex justify-between items-center">
@@ -44,28 +45,28 @@ const Header: FC<HeaderProps> = ({
           <Wrench className="h-6 w-6 mr-2" />
           <span className="text-xl font-bold">AutoSynctify</span>
         </div>
-        
+
         <NavLinks activeTab={activeTab} handleNavigation={handleNavigation} />
-        
+
         {/* Authentication Buttons */}
         <div className="hidden md:flex space-x-4">
-          <button 
+          <button
             className="px-4 py-2 text-gray-700 hover:text-gray-900"
             onClick={handleLogin}
           >
             Log in
           </button>
-          
-          <button 
+
+          <button
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            onClick={handleSignup} // Use the new handler here
+            onClick={handleSignup}
           >
             Sign up
           </button>
         </div>
-        
+
         {/* Mobile menu button */}
-        <button 
+        <button
           className="md:hidden"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         >

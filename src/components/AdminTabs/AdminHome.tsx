@@ -32,19 +32,49 @@ const AdminHome: React.FC = () => {
   // Fetch technicians from Supabase
   useEffect(() => {
     const fetchTechnicians = async () => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('role', 'technician');
-
-      if (error) {
-        console.error('Error fetching technicians:', error);
-      } else if (data) {
-        setTechnicians(data);
+      try {
+        // 1. Get the currently authenticated user from Supabase
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData?.user?.id) {
+          console.error("Error fetching current user or no user ID found:", userError);
+          return;
+        }
+  
+        // 2. Look up that user's dealership_id in the "users" table
+        const { data: adminData, error: adminError } = await supabase
+          .from("users")
+          .select("dealership_id")
+          .eq("auth_id", userData.user.id)
+          .single();
+  
+        if (adminError || !adminData?.dealership_id) {
+          console.error("Error fetching dealership ID:", adminError);
+          return;
+        }
+  
+        // 3. Fetch only technicians from that same dealership
+        const { data, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("role", "technician")
+          .eq("dealership_id", adminData.dealership_id);
+  
+        if (error) {
+          console.error("Error fetching technicians:", error);
+          return;
+        }
+  
+        if (data) {
+          setTechnicians(data);
+        }
+      } catch (err) {
+        console.error("Error in fetchTechnicians:", err);
       }
     };
+  
     fetchTechnicians();
   }, []);
+  
   
   // Process data for metrics
   useEffect(() => {

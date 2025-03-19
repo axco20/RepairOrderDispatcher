@@ -5,6 +5,11 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useMe
 import { supabase } from '@/lib/supabaseClient';
 import { RepairOrder } from '@/types/repairOrder';
 
+
+
+
+
+
 // Define a simple RepairOrderAssignment type (even if you don't have the actual file)
 interface RepairOrderAssignment {
   id?: string;
@@ -93,6 +98,38 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [assignments, setAssignments] = useState<RepairOrderAssignment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [userDealershipId, setUserDealershipId] = useState<string | null>(null);
+
+
+  const fetchUserDealershipId = async () => {
+    try {
+      // Get the current authenticated user
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        console.error('Error getting current user:', authError);
+        return null;
+      }
+      
+      // Get the user's details from your users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('dealership_id')
+        .eq('auth_id', user.id)
+        .single();
+      
+      if (userError) {
+        console.error('Error fetching user dealership:', userError);
+        return null;
+      }
+      
+      console.log('User dealership ID:', userData.dealership_id);
+      return userData.dealership_id;
+    } catch (err) {
+      console.error('Exception fetching dealership ID:', err);
+      return null;
+    }
+  };
 
   // Derive filtered order lists for QueueManagement
   const pendingOrders = useMemo(() => 
@@ -117,6 +154,7 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
       const { data, error } = await supabase
         .from('repair_orders')
         .select('*')
+        .eq('dealership_id', userDealershipId) // Filter by dealership_id
         .order('created_at', { ascending: false });
       
       if (error) {
@@ -185,14 +223,20 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   // Load data on initial render
-  useEffect(() => {
-    const loadData = async () => {
+ useEffect(() => {
+  const loadData = async () => {
+    const dealershipId = await fetchUserDealershipId();
+    if (dealershipId) {
+      setUserDealershipId(dealershipId);
       await refreshOrders();
       await fetchAssignments();
-    };
-    
-    loadData();
-  }, []);
+    } else {
+      setError('Failed to determine user dealership');
+    }
+  };
+  
+  loadData();
+}, []);
 
   // Get a single repair order
   const getRepairOrder = async (id: string): Promise<RepairOrder | null> => {
@@ -232,7 +276,8 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
         priority: data.priority || 1,
         priority_type: data.priorityType,
         status: data.status || 'pending',
-        difficulty_level: data.difficulty_level || 1, // Explicitly include difficulty_level
+        difficulty_level: data.difficulty_level || 1,
+        dealership_id: data.dealership_id, // Add this line!
         // Add other fields as needed
       };
       
@@ -243,6 +288,8 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
         .insert(dbData)
         .select()
         .single();
+      
+      // Rest of the function remains the same
       
       if (error) {
         console.error("Supabase error:", error);
