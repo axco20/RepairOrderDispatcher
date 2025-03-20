@@ -489,7 +489,7 @@ const QueueManagement: React.FC = () => {
           </h2>
           <div className="mt-4 text-center">
             <div className="p-4 bg-gray-50 rounded">
-              <p className="text-sm text-gray-700">Pending</p>
+              <p className="text-sm text-gray-700">Awaiting Dispatch</p>
               <p className="text-3xl font-bold text-indigo-600">{pendingOrders?.length || 0}</p>
             </div>
           </div>

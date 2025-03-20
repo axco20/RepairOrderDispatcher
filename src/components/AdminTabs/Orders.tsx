@@ -583,7 +583,7 @@ const completedOrders = useMemo(() => {
   const tabs = [
     {
       id: "pending",
-      label: "Pending",
+      label: "Awaiting Dispatch",
       count: pendingOrders.length,
       icon: <Clock className="w-5 h-5" />,
       color: "yellow",
@@ -882,7 +882,7 @@ const completedOrders = useMemo(() => {
                             : "bg-green-100 text-green-800"
                         }`}
                       >
-                        {order.status.replace("_", " ")}
+                        {order.status === "pending" ? "awaiting dispatch" : order.status.replace("_"," ")}
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
