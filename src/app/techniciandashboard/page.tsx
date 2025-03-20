@@ -10,14 +10,16 @@ import CompletedOrders from "@/components/TechnicianTabs/CompletedOrders";
 import OnHoldOrders from "@/components/TechnicianTabs/OnHoldOrders";
 import Help from "@/components/TechnicianTabs/Help";
 import { toast } from "react-toastify";
-import { useRealTimeOrders } from "@/lib/useRealTimeOrders";
+import { useRealTimeUpdates } from "@/lib/useRealTimeOrders";
 import { BarChart2 } from "lucide-react"; 
 import { supabase } from "@/lib/supabaseClient";
+
 // Removed the TechnicianWorkload import
 
 export default function TechnicianDashboard() {
   const { currentUser, logout } = useAuth();
   const router = useRouter();
+  useRealTimeUpdates();
   
   const { 
     technicianOrders, 
@@ -28,9 +30,6 @@ export default function TechnicianDashboard() {
     refreshOrders
   } = useRepairOrders();
 
-  // Call useRealTimeOrders to set up subscriptions
-  useRealTimeOrders(refreshOrders);
-  
   const [activePage, setActivePage] = useState<"Home" | "ActiveOrders"| "OnHoldOrders" | "CompletedOrders" | "Help">("Home");
   const [isAssigningOrder, setIsAssigningOrder] = useState(false);
   const [techSkillLevel, setTechSkillLevel] = useState<number>(1);

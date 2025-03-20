@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { useRouter } from "next/navigation";
 import { useAuth } from '@/context/AuthContext';
 import AdminSidebar, { AdminPage } from '../../components/AdminSideBar';
+import { useRealTimeUpdates } from "@/lib/useRealTimeOrders";
+
 
 // Import your tab components
 import TeamMembers from '../../components/AdminTabs/TeamMembers';
@@ -16,6 +18,8 @@ import AdminHome from '../../components/AdminTabs/AdminHome';
 const AdminDashboard: React.FC = () => {
   const { currentUser, logout } = useAuth();
   const router = useRouter();
+
+  useRealTimeUpdates();
 
   // "Dashboard" is your default active tab/page
   const [activePage, setActivePage] = useState<AdminPage>('Dashboard');
