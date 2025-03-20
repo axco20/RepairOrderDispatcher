@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Play,
   Info,
+  Zap,
 } from "lucide-react";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { toast } from "react-toastify";
@@ -87,6 +88,70 @@ const Orders: React.FC = () => {
     useState<TechnicianOption | null>(null);
   // State for the hold reason tooltip/modal
   const [showReasonId, setShowReasonId] = useState<string | null>(null);
+
+  // Priority Badge component
+  const PriorityBadge: React.FC<{ priority?: number | string }> = ({ priority }) => {
+    // Handle numeric priorities (1, 2, 3)
+    if (typeof priority === 'number') {
+      if (priority === 1) {
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+            <Zap className="h-3 w-3 text-red-800 mr-1" />
+            WAIT
+          </span>
+        );
+      } else if (priority === 2) {
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+            <Tag className="h-3 w-3 text-yellow-800 mr-1" />
+            VALET
+          </span>
+        );
+      } else if (priority === 3) {
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <Clock className="h-3 w-3 text-green-800 mr-1" />
+            LOANER
+          </span>
+        );
+      }
+    }
+    
+    // Handle string priorities like "WAIT", "VALET", "LOANER"
+    if (typeof priority === 'string') {
+      const priorityUpperCase = priority.toUpperCase();
+      
+      if (priorityUpperCase === 'WAIT' || priorityUpperCase === '1') {
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+            <Zap className="h-3 w-3 text-red-800 mr-1" />
+            WAIT
+          </span>
+        );
+      } else if (priorityUpperCase === 'VALET' || priorityUpperCase === '2') {
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+            <Tag className="h-3 w-3 text-yellow-800 mr-1" />
+            VALET
+          </span>
+        );
+      } else if (priorityUpperCase === 'LOANER' || priorityUpperCase === '3') {
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <Clock className="h-3 w-3 text-green-800 mr-1" />
+            LOANER
+          </span>
+        );
+      }
+    }
+    
+    // Default case if priority is undefined or not recognized
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+        Standard
+      </span>
+    );
+  };
 
   // Fetch technicians on mount
   useEffect(() => {
@@ -414,11 +479,104 @@ const Orders: React.FC = () => {
     );
   }, [repairOrders, searchQuery]);
 
-  // Group orders by status and (for completed) sort by most recent
-  const pendingOrders = useMemo(() => filteredOrders.filter((o) => o.status === "pending"), [filteredOrders]);
-  const inProgressOrders = useMemo(() => filteredOrders.filter((o) => o.status === "in_progress"), [filteredOrders]);
-  const onHoldOrders = useMemo(() => filteredOrders.filter((o) => o.status === "on_hold"), [filteredOrders]);
-  const completedOrders = useMemo(() => filteredOrders.filter((o) => o.status === "completed").slice(0, 50), [filteredOrders]);
+  // Add this helper function to determine the numeric sort value for each priority type
+const getPrioritySortValue = (priorityType: string | number | undefined): number => {
+  if (typeof priorityType === 'string') {
+    const priorityUpperCase = priorityType.toUpperCase();
+    if (priorityUpperCase === 'WAIT' || priorityUpperCase === '1') return 1;
+    if (priorityUpperCase === 'VALET' || priorityUpperCase === '2') return 2;
+    if (priorityUpperCase === 'LOANER' || priorityUpperCase === '3') return 3;
+  } else if (typeof priorityType === 'number') {
+    return priorityType;
+  }
+  return 4; // Default value for unknown priorities
+};
+
+// Then modify the useMemo hooks for the order lists to include sorting by priority
+// Replace the existing pending orders useMemo with this:
+const pendingOrders = useMemo(() => {
+  const filtered = filteredOrders.filter((o) => o.status === "pending");
+  // Sort by priority first (WAIT first, then VALET, then LOANER)
+  // Then by creation date (oldest first) within each priority group
+  return filtered.sort((a, b) => {
+    const aPriority = getPrioritySortValue(a.priority || a.priorityType);
+    const bPriority = getPrioritySortValue(b.priority || b.priorityType);
+    
+    // If priorities are different, sort by priority
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority;
+    }
+    
+    // If priorities are the same, sort by creation date (oldest first)
+    const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return aDate - bDate; // Normal order for oldest first
+  });
+}, [filteredOrders]);
+
+// Apply the same sorting logic to in-progress orders
+const inProgressOrders = useMemo(() => {
+  const filtered = filteredOrders.filter((o) => o.status === "in_progress");
+  return filtered.sort((a, b) => {
+    const aPriority = getPrioritySortValue(a.priority || a.priorityType);
+    const bPriority = getPrioritySortValue(b.priority || b.priorityType);
+    
+    // If priorities are different, sort by priority
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority;
+    }
+    
+    // If priorities are the same, sort by creation date (oldest first)
+    const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return aDate - bDate; // Normal order for oldest first
+  });
+}, [filteredOrders]);
+
+// And for on-hold orders
+const onHoldOrders = useMemo(() => {
+  const filtered = filteredOrders.filter((o) => o.status === "on_hold");
+  return filtered.sort((a, b) => {
+    const aPriority = getPrioritySortValue(a.priority || a.priorityType);
+    const bPriority = getPrioritySortValue(b.priority || b.priorityType);
+    
+    // If priorities are different, sort by priority
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority;
+    }
+    
+    // If priorities are the same, sort by creation date (oldest first)
+    const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return aDate - bDate; // Normal order for oldest first
+  });
+}, [filteredOrders]);
+
+// For completed orders, prioritize newest completions first
+const completedOrders = useMemo(() => {
+  const filtered = filteredOrders.filter((o) => o.status === "completed");
+  return filtered
+    .sort((a, b) => {
+      // First sort by completion date (newest first)
+      if (a.completedAt && b.completedAt) {
+        return new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime();
+      }
+      
+      // If completion dates are equal or missing, sort by priority
+      const aPriority = getPrioritySortValue(a.priority || a.priorityType);
+      const bPriority = getPrioritySortValue(b.priority || b.priorityType);
+      
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      // If both priority and completion date are equal, sort by creation date (oldest first)
+      const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return aDate - bDate; // Normal order for oldest first
+    })
+    .slice(0, 50);
+}, [filteredOrders]);
 
 
   // Tab configuration
@@ -685,6 +843,9 @@ const Orders: React.FC = () => {
                     Status
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Priority
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Difficulty
                   </th>
                   {activeTab === "on_hold" && (
@@ -723,6 +884,9 @@ const Orders: React.FC = () => {
                       >
                         {order.status.replace("_", " ")}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <PriorityBadge priority={order.priority} />
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span

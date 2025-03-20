@@ -14,6 +14,7 @@ interface RepairOrder {
   createdAt: string;
   minutesElapsed?: number;
   isUrgent?: boolean;
+  numericPriority?: number; // Added for sorting
 }
 
 interface User {
@@ -69,11 +70,40 @@ const PendingRepairOrdersTable: React.FC<ActiveRepairOrdersTableProps> = ({ repa
           const minutesElapsed = getMinutesElapsed(order.createdAt);
           // Add urgency flag if order hasn't been picked up in 10 minutes
           const isUrgent = minutesElapsed >= 10;
-          return { ...order, minutesElapsed, isUrgent };
+          
+          // Convert priority to numeric for consistent sorting
+          let numericPriority = 1; // Default to highest priority (WAIT)
+          
+          if (typeof order.priority === 'number') {
+            numericPriority = order.priority;
+          } else if (typeof order.priority === 'string') {
+            const priorityStr = order.priority.toLowerCase();
+            if (priorityStr === 'wait' || priorityStr === '1') {
+              numericPriority = 1;
+            } else if (priorityStr === 'valet' || priorityStr === '2') {
+              numericPriority = 2;
+            } else if (priorityStr === 'loaner' || priorityStr === '3') {
+              numericPriority = 3;
+            }
+          }
+          
+          return { ...order, minutesElapsed, isUrgent, numericPriority };
         })
-        // Sort by urgency first, then by creation date (oldest first)
+        // Sort by priority first (1=WAIT → 2=VALET → 3=LOANER)
+        // Then by urgency (urgent first)
+        // Then by creation date (oldest first)
         .sort((a, b) => {
-          if (a.isUrgent !== b.isUrgent) return b.isUrgent ? 1 : -1;
+          // First sort by priority (1=WAIT, 2=VALET, 3=LOANER)
+          if (a.numericPriority !== b.numericPriority) {
+            return a.numericPriority - b.numericPriority;
+          }
+          
+          // If same priority, sort by urgency
+          if (a.isUrgent !== b.isUrgent) {
+            return a.isUrgent ? -1 : 1; // Urgent orders first
+          }
+          
+          // If same urgency, sort by creation date (oldest first)
           return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         });
       
@@ -183,10 +213,10 @@ const PendingRepairOrdersTable: React.FC<ActiveRepairOrdersTableProps> = ({ repa
       );
     }
     
-    // Display the raw priority value if it doesn't match expected values (for debugging)
+    // Display the raw priority value if it doesn't match expected values
     return (
       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-        {typeof priority === 'string' || typeof priority === 'number' ? String(priority) : 'Unknown'}
+        Standard
       </span>
     );
   };
