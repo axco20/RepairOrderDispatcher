@@ -122,17 +122,17 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
     const interval = setInterval(() => {
       setTimers((prevTimers) => {
         const updatedTimers = { ...prevTimers };
-  
+
         // Loop through all technicians and ensure they are being tracked
         technicianWorkloads.forEach((tech) => {
           if (!(tech.id in updatedTimers)) {
             updatedTimers[tech.id] = 0; // Initialize missing timers
           }
-  
+
           // If they have no active orders, increment the timer
           if (tech.activeOrderCount === 0) {
             updatedTimers[tech.id] += 1;
-  
+
             // If timer hits threshold (1 minute for testing), enable flashing
             if (updatedTimers[tech.id] >= 1) {
               setFlashingTechs((prev) => ({ ...prev, [tech.id]: true }));
@@ -142,14 +142,14 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
             setFlashingTechs((prev) => ({ ...prev, [tech.id]: false })); // Stop flashing
           }
         });
-  
+
         return updatedTimers;
       });
     }, 60000); // Runs every minute
-  
+
     return () => clearInterval(interval);
   }, [technicianWorkloads]);
-  
+
   useEffect(() => {
     technicianWorkloads.forEach((tech) => {
       if (tech.activeOrderCount > 0) {
@@ -163,6 +163,20 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
 
   const toggleSortOrder = () =>
     setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+
+  // Helper function to capitalize first letter of each sentence
+  const capitalizeFirstLetter = (text: string): string => {
+    if (!text) return '';
+    
+    // Split by sentence-ending punctuation followed by a space
+    return text.split(/([.!?]\s+)/).map((part, index) => {
+      // If this is a punctuation part, return it as is
+      if (/^[.!?]\s+$/.test(part)) return part;
+      
+      // Otherwise capitalize the first letter if it's a lowercase 'i' by itself
+      return part.replace(/(\s|^)i(\s|$)/g, (match, p1, p2) => `${p1}I${p2}`);
+    }).join('');
+  };
 
   // CSS for blinking effect - imported from ActiveRepairOrdersTable
   const blinkingStyle = `
@@ -247,16 +261,30 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
                 )}
 
                 {/* Tooltip for on hold orders */}
-                {tooltipTech === tech.id && tech.onHoldOrderDescriptions && tech.onHoldOrderDescriptions.length > 0 && (
-                  <div className="absolute right-0 z-10 mt-2 w-56 -top-2 transform translate-y-full bg-white rounded-md shadow-lg p-2 text-left">
-                    <p className="font-bold text-xs mb-1">On Hold Orders:</p>
-                    <ul className="text-xs space-y-1">
-                      {tech.onHoldOrderDescriptions.map((description, idx) => (
-                        <li key={idx} className="truncate">• {description}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                {tooltipTech === tech.id &&
+                  tech.onHoldOrderDescriptions &&
+                  tech.onHoldOrderDescriptions.length > 0 && (
+                    <div className="absolute z-10 mt-2 w-60 right-0 transform translate-y-full bg-white rounded-md shadow-lg p-3 text-left border border-gray-200">
+                      <p className="font-bold text-xs mb-1 text-gray-700">
+                        On Hold Orders:
+                      </p>
+                      <ul className="text-xs space-y-1 text-gray-600 max-h-36 overflow-auto">
+                        {tech.onHoldOrderDescriptions
+                          .filter((desc) => desc.trim() !== "") // Remove empty descriptions
+                          .slice(0, 5) // Limit to first 5 for better UI
+                          .map((description, idx) => (
+                            <li key={idx} className="truncate">
+                              • {capitalizeFirstLetter(description)}
+                            </li>
+                          ))}
+                      </ul>
+                      {tech.onHoldOrderDescriptions.length > 5 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          + {tech.onHoldOrderDescriptions.length - 5} more...
+                        </p>
+                      )}
+                    </div>
+                  )}
               </div>
             </div>
           ))}

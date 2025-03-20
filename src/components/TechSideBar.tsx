@@ -59,7 +59,7 @@ const TechSidebar: React.FC<TechSidebarProps> = ({
           >
             <Icon size={18} />
             <span className="ml-3">{name}</span>
-            {count && count > 0 && (
+            {count !== undefined && count > 0 && (
               <span className="ml-auto bg-indigo-500 text-white text-xs px-2 py-1 rounded-full">
                 {count}
               </span>

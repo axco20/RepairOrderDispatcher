@@ -25,56 +25,143 @@ const TeamMembers: React.FC = () => {
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
   const [skillLevel, setSkillLevel] = useState<number>(1);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [dealershipId, setDealershipId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMembers();
+    
+    // Set up realtime subscription when component mounts
+    const setupRealtimeSubscription = async () => {
+      try {
+        // Get the current user's dealership_id first
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData?.user?.id) {
+          console.error("Error fetching current user:", userError);
+          return;
+        }
+
+        const { data: currentUserData, error: currentUserError } = await supabase
+          .from("users")
+          .select("dealership_id")
+          .eq("auth_id", userData.user.id)
+          .single();
+
+        if (currentUserError || !currentUserData?.dealership_id) {
+          console.error("Error fetching user dealership ID:", currentUserError);
+          return;
+        }
+
+        const dealerId = currentUserData.dealership_id;
+        setDealershipId(dealerId);
+        
+        // Subscribe to changes in the users table filtered by dealership_id
+        const subscription = supabase
+          .channel('users-changes')
+          .on('postgres_changes', {
+            event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
+            schema: 'public',
+            table: 'users',
+            filter: `dealership_id=eq.${dealerId}`, // Filter for only the current dealership
+          }, (payload) => {
+            console.log('Change received!', payload);
+            
+            // Handle different types of changes
+            switch (payload.eventType) {
+              case 'INSERT':
+                // Add new member to the list if not already there
+                setMembers(currentMembers => {
+                  const newMember = payload.new as TeamMember;
+                  const exists = currentMembers.some(member => member.id === newMember.id);
+                  if (!exists) {
+                    return [...currentMembers, newMember];
+                  }
+                  return currentMembers;
+                });
+                toast.info("✅ New team member added");
+                break;
+                
+              case 'UPDATE':
+                // Update the member in the list
+                setMembers(currentMembers => 
+                  currentMembers.map(member => 
+                    member.id === payload.new.id ? { ...member, ...payload.new } : member
+                  )
+                );
+                break;
+                
+              case 'DELETE':
+                // Remove the member from the list
+                setMembers(currentMembers => 
+                  currentMembers.filter(member => member.id !== payload.old.id)
+                );
+                break;
+                
+              default:
+                break;
+            }
+          })
+          .subscribe();
+          
+        // Clean up subscription when component unmounts
+        return () => {
+          supabase.removeChannel(subscription);
+        };
+      } catch (err) {
+        console.error("Error setting up realtime subscription:", err);
+      }
+    };
+    
+    setupRealtimeSubscription();
   }, []);
 
   // Modify the fetchMembers function
-const fetchMembers = async () => {
-  try {
-    // 1. Get the current user
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData?.user?.id) {
-      console.error("Error fetching current user:", userError);
-      return;
+  const fetchMembers = async () => {
+    try {
+      // 1. Get the current user
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user?.id) {
+        console.error("Error fetching current user:", userError);
+        return;
+      }
+
+      // 2. Get the current user's dealership_id
+      const { data: currentUserData, error: currentUserError } = await supabase
+        .from("users")
+        .select("dealership_id")
+        .eq("auth_id", userData.user.id)
+        .single();
+
+      if (currentUserError || !currentUserData?.dealership_id) {
+        console.error("Error fetching user dealership ID:", currentUserError);
+        return;
+      }
+
+      const dealershipId = currentUserData.dealership_id;
+      console.log("Current user's dealership ID:", dealershipId);
+      
+      // Store dealership ID in state for later use
+      setDealershipId(dealershipId);
+
+      // 3. Get all users with the same dealership_id
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("dealership_id", dealershipId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching team members:", error);
+        return;
+      }
+
+      if (data) {
+        console.log("Fetched members:", data);
+        setMembers(data);
+      }
+    } catch (err) {
+      console.error("Error in fetchMembers:", err);
     }
-
-    // 2. Get the current user's dealership_id
-    const { data: currentUserData, error: currentUserError } = await supabase
-      .from("users")
-      .select("dealership_id")
-      .eq("auth_id", userData.user.id)
-      .single();
-
-    if (currentUserError || !currentUserData?.dealership_id) {
-      console.error("Error fetching user dealership ID:", currentUserError);
-      return;
-    }
-
-    const dealershipId = currentUserData.dealership_id;
-    console.log("Current user's dealership ID:", dealershipId);
-
-    // 3. Get all users with the same dealership_id
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("dealership_id", dealershipId)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching team members:", error);
-      return;
-    }
-
-    if (data) {
-      console.log("Fetched members:", data);
-      setMembers(data);
-    }
-  } catch (err) {
-    console.error("Error in fetchMembers:", err);
-  }
-};
+  };
 
   const filteredMembers = members.filter(
     (m) =>
@@ -177,7 +264,8 @@ const fetchMembers = async () => {
         return;
       }
 
-      // Update local state
+      // The local state will be updated by the realtime subscription,
+      // but we can still update it immediately for better UX
       setMembers(
         members.map((member) =>
           member.id === selectedTechnician.id
@@ -219,7 +307,8 @@ const fetchMembers = async () => {
         return;
       }
 
-      // 2. Update local state by filtering out the removed member
+      // The local state will be updated by the realtime subscription,
+      // but we can still update it immediately for better UX
       setMembers(members.filter(member => member.id !== memberToRemove.id));
       
       toast.success(`✅ ${memberToRemove.name || memberToRemove.email} has been removed from your team`);

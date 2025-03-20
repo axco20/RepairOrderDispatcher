@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Search,
   Clock,
@@ -19,7 +19,7 @@ import {
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { toast } from "react-toastify";
 import { supabase } from "@/lib/supabaseClient";
-import { useAuth } from "@/context/AuthContext"; // Adjust the path as needed
+import { useAuth } from "@/context/AuthContext";
 import Select from "react-select";
 
 // Define types for technicians and react-select options
@@ -29,29 +29,28 @@ interface Technician {
   name: string;
   email: string;
   role: string;
-  skill_level: number; // Added skill level
-  
+  skill_level: number;
 }
 
 interface TechnicianOption {
   value: string;
   label: string;
-  skill_level: number; // Added skill level
+  skill_level: number;
 }
 
 interface RepairOrder {
   id: string;
   description?: string;
   orderDescription?: string;
-  status: "pending" | "in_progress" | "completed" | "on_hold"; // Added "on_hold"
+  status: "pending" | "in_progress" | "completed" | "on_hold";
   priority?: number;
   priorityType?: string;
-  difficulty_level?: number; // Added difficulty level
+  difficulty_level?: number;
   createdAt?: string;
   completedAt?: string;
   assignedTo?: string;
-  on_hold_description?: string; // Field for hold reason from database
-  onHoldDescription?: string;   // Alternative field name (some systems might use this naming)
+  on_hold_description?: string;
+  onHoldDescription?: string;
 }
 
 const Orders: React.FC = () => {
@@ -74,20 +73,23 @@ const Orders: React.FC = () => {
   const [formData, setFormData] = useState({
     description: "",
     orderDescription: "",
-    priority: 1, // Keeping for backend compatibility
+    priority: 1,
     priorityType: "WAIT" as "WAIT" | "VALET" | "LOANER",
-    difficulty_level: 1, // Default difficulty level
+    difficulty_level: 1,
     status: "pending" as "pending" | "in_progress" | "completed" | "on_hold",
     assignedTo: "",
-    
   });
-  // Assignment modal state – note that we replace the plain input with a react-select state
+  
+  // Assignment modal state
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState("");
   const [selectedTechnicianOption, setSelectedTechnicianOption] =
     useState<TechnicianOption | null>(null);
   // State for the hold reason tooltip/modal
   const [showReasonId, setShowReasonId] = useState<string | null>(null);
+  
+  // Flag to track initial data load - add this
+  const initialLoadComplete = useRef(false);
 
   // Priority Badge component
   const PriorityBadge: React.FC<{ priority?: number | string }> = ({ priority }) => {
@@ -153,9 +155,8 @@ const Orders: React.FC = () => {
     );
   };
 
-  // Fetch technicians on mount
+  // Only fetch technicians when component mounts
   useEffect(() => {
-    if (technicians.length > 0) return;
     const fetchTechnicians = async () => {
       try {
         // 1. Get the currently authenticated user
@@ -197,52 +198,32 @@ const Orders: React.FC = () => {
     };
   
     fetchTechnicians();
-  }, [technicians.length]);
-  
+  }, []);
 
-  // Refresh orders on mount
+  // Only fetch repair orders on initial mount
   useEffect(() => {
-    if (repairOrders.length === 0) {
+    if (!initialLoadComplete.current && repairOrders.length === 0 && !loading) {
+      console.log("📊 Initial fetch of repair orders");
       refreshOrders();
+      initialLoadComplete.current = true;
     }
-  }, []);
+  }, [repairOrders, loading, refreshOrders]);
 
-  // Helper to compute the active order count for a given technician (e.g. orders "in_progress")
-  const technicianActiveOrderCount = (techAuthId: string) => {
-    return repairOrders.filter(
-      (order) => order.assignedTo === techAuthId && order.status === "in_progress"
-    ).length;
-  };
-
-  // Compute technician options using the technicians state and active order counts
+  // Handle real-time repair order updates - listen for the event
   useEffect(() => {
-    const fetchTechnicians = async () => {
-      // Get current user
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        console.error("Error retrieving user:", userError);
-        return;
-      }
-      const currentUser = userData?.user;
-  
-      // Fetch only technicians for the current user's dealership
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("role", "technician")
-        .eq("dealership_id", currentUser?.id);
-  
-      if (error) {
-        console.error("Error fetching technicians:", error);
-      } else if (data) {
-        setTechnicians(data);
-      }
+    const handleOrderUpdates = () => {
+      console.log("🔄 Orders component: Detected order updates event");
+      // We don't need to call refreshOrders() here because the context already did
     };
-  
-    fetchTechnicians();
+    
+    window.addEventListener('ordersUpdated', handleOrderUpdates);
+    
+    return () => {
+      window.removeEventListener('ordersUpdated', handleOrderUpdates);
+    };
   }, []);
-  
-  // Now create a technicianOptions variable from the `technicians` array
+
+  // Compute technician options using the technicians state
   const technicianOptions = useMemo(() => {
     return technicians.map((tech) => ({
       value: tech.auth_id,
@@ -250,7 +231,6 @@ const Orders: React.FC = () => {
       skill_level: tech.skill_level,
     }));
   }, [technicians]);
-  
 
   // Helper to get technician name for display in the table
   const getTechnicianName = (authId?: string) => {
@@ -479,90 +459,23 @@ const Orders: React.FC = () => {
     );
   }, [repairOrders, searchQuery]);
 
-  // Add this helper function to determine the numeric sort value for each priority type
-const getPrioritySortValue = (priorityType: string | number | undefined): number => {
-  if (typeof priorityType === 'string') {
-    const priorityUpperCase = priorityType.toUpperCase();
-    if (priorityUpperCase === 'WAIT' || priorityUpperCase === '1') return 1;
-    if (priorityUpperCase === 'VALET' || priorityUpperCase === '2') return 2;
-    if (priorityUpperCase === 'LOANER' || priorityUpperCase === '3') return 3;
-  } else if (typeof priorityType === 'number') {
-    return priorityType;
-  }
-  return 4; // Default value for unknown priorities
-};
-
-// Then modify the useMemo hooks for the order lists to include sorting by priority
-// Replace the existing pending orders useMemo with this:
-const pendingOrders = useMemo(() => {
-  const filtered = filteredOrders.filter((o) => o.status === "pending");
-  // Sort by priority first (WAIT first, then VALET, then LOANER)
-  // Then by creation date (oldest first) within each priority group
-  return filtered.sort((a, b) => {
-    const aPriority = getPrioritySortValue(a.priority || a.priorityType);
-    const bPriority = getPrioritySortValue(b.priority || b.priorityType);
-    
-    // If priorities are different, sort by priority
-    if (aPriority !== bPriority) {
-      return aPriority - bPriority;
+  // Helper function to determine the numeric sort value for each priority type
+  const getPrioritySortValue = (priorityType: string | number | undefined): number => {
+    if (typeof priorityType === 'string') {
+      const priorityUpperCase = priorityType.toUpperCase();
+      if (priorityUpperCase === 'WAIT' || priorityUpperCase === '1') return 1;
+      if (priorityUpperCase === 'VALET' || priorityUpperCase === '2') return 2;
+      if (priorityUpperCase === 'LOANER' || priorityUpperCase === '3') return 3;
+    } else if (typeof priorityType === 'number') {
+      return priorityType;
     }
-    
-    // If priorities are the same, sort by creation date (oldest first)
-    const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-    const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    return aDate - bDate; // Normal order for oldest first
-  });
-}, [filteredOrders]);
+    return 4; // Default value for unknown priorities
+  };
 
-// Apply the same sorting logic to in-progress orders
-const inProgressOrders = useMemo(() => {
-  const filtered = filteredOrders.filter((o) => o.status === "in_progress");
-  return filtered.sort((a, b) => {
-    const aPriority = getPrioritySortValue(a.priority || a.priorityType);
-    const bPriority = getPrioritySortValue(b.priority || b.priorityType);
-    
-    // If priorities are different, sort by priority
-    if (aPriority !== bPriority) {
-      return aPriority - bPriority;
-    }
-    
-    // If priorities are the same, sort by creation date (oldest first)
-    const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-    const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    return aDate - bDate; // Normal order for oldest first
-  });
-}, [filteredOrders]);
-
-// And for on-hold orders
-const onHoldOrders = useMemo(() => {
-  const filtered = filteredOrders.filter((o) => o.status === "on_hold");
-  return filtered.sort((a, b) => {
-    const aPriority = getPrioritySortValue(a.priority || a.priorityType);
-    const bPriority = getPrioritySortValue(b.priority || b.priorityType);
-    
-    // If priorities are different, sort by priority
-    if (aPriority !== bPriority) {
-      return aPriority - bPriority;
-    }
-    
-    // If priorities are the same, sort by creation date (oldest first)
-    const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-    const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    return aDate - bDate; // Normal order for oldest first
-  });
-}, [filteredOrders]);
-
-// For completed orders, prioritize newest completions first
-const completedOrders = useMemo(() => {
-  const filtered = filteredOrders.filter((o) => o.status === "completed");
-  return filtered
-    .sort((a, b) => {
-      // First sort by completion date (newest first)
-      if (a.completedAt && b.completedAt) {
-        return new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime();
-      }
-      
-      // If completion dates are equal or missing, sort by priority
+  // Memoized sorted order lists
+  const pendingOrders = useMemo(() => {
+    const filtered = filteredOrders.filter((o) => o.status === "pending");
+    return filtered.sort((a, b) => {
       const aPriority = getPrioritySortValue(a.priority || a.priorityType);
       const bPriority = getPrioritySortValue(b.priority || b.priorityType);
       
@@ -570,14 +483,65 @@ const completedOrders = useMemo(() => {
         return aPriority - bPriority;
       }
       
-      // If both priority and completion date are equal, sort by creation date (oldest first)
       const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return aDate - bDate; // Normal order for oldest first
-    })
-    .slice(0, 50);
-}, [filteredOrders]);
+      return aDate - bDate;
+    });
+  }, [filteredOrders]);
 
+  const inProgressOrders = useMemo(() => {
+    const filtered = filteredOrders.filter((o) => o.status === "in_progress");
+    return filtered.sort((a, b) => {
+      const aPriority = getPrioritySortValue(a.priority || a.priorityType);
+      const bPriority = getPrioritySortValue(b.priority || b.priorityType);
+      
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return aDate - bDate;
+    });
+  }, [filteredOrders]);
+
+  const onHoldOrders = useMemo(() => {
+    const filtered = filteredOrders.filter((o) => o.status === "on_hold");
+    return filtered.sort((a, b) => {
+      const aPriority = getPrioritySortValue(a.priority || a.priorityType);
+      const bPriority = getPrioritySortValue(b.priority || b.priorityType);
+      
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return aDate - bDate;
+    });
+  }, [filteredOrders]);
+
+  const completedOrders = useMemo(() => {
+    const filtered = filteredOrders.filter((o) => o.status === "completed");
+    return filtered
+      .sort((a, b) => {
+        if (a.completedAt && b.completedAt) {
+          return new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime();
+        }
+        
+        const aPriority = getPrioritySortValue(a.priority || a.priorityType);
+        const bPriority = getPrioritySortValue(b.priority || b.priorityType);
+        
+        if (aPriority !== bPriority) {
+          return aPriority - bPriority;
+        }
+        
+        const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return aDate - bDate;
+      })
+      .slice(0, 50);
+  }, [filteredOrders]);
 
   // Tab configuration
   const tabs = [

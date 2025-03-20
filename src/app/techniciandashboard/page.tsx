@@ -162,18 +162,6 @@ export default function TechnicianDashboard() {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Add Skill Level Indicator at the top */}
-        <div className="bg-blue-50 px-6 py-2 border-b border-blue-100 flex items-center justify-between">
-          <div className="flex items-center">
-            <BarChart2 className="h-5 w-5 mr-2 text-blue-600" />
-            <span className="text-sm font-medium text-blue-800">
-              Your Skill Level: Level {techSkillLevel} ({getSkillLevelLabel(techSkillLevel)})
-            </span>
-          </div>
-          <div className="text-sm text-blue-800">
-            {availableOrdersCount} order{availableOrdersCount !== 1 ? 's' : ''} available at your skill level
-          </div>
-        </div>
         
         <main className="flex-1 overflow-y-auto p-6 bg-gray-100">
           {/* Removed TechnicianWorkload component */}
