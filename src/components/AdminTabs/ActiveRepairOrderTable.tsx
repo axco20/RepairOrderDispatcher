@@ -1,8 +1,7 @@
-// Updated ActiveRepairOrdersTable component with difficulty level support and TypeScript fixes
 "use client"; // Needed for hooks in Next.js
 
 import React, { useState, useEffect } from "react";
-import { Clock, AlertTriangle, CheckCircle, ArrowRightCircle, BarChart2, Pause } from "lucide-react";
+import { Clock, AlertTriangle, CheckCircle, ArrowRightCircle, BarChart2, Pause, Zap, Tag } from "lucide-react";
 
 // Define interfaces for type safety
 interface RepairOrder {
@@ -10,6 +9,7 @@ interface RepairOrder {
   description?: string;
   status: 'pending' | 'in_progress' | 'completed' | 'on_hold';
   difficulty_level?: number;
+  priority?: number; // Added for priority display
   createdAt: string;
   minutesElapsed?: number;
   isUrgent?: boolean;
@@ -70,13 +70,24 @@ const ActiveRepairOrdersTable: React.FC<ActiveRepairOrdersTableProps> = ({ repai
           const isUrgent = order.status === 'pending' && minutesElapsed >= 10;
           return { ...order, minutesElapsed, isUrgent };
         })
-        // Sort by urgency first, then by status (pending first), then by creation date
+        // Sort by priority first (WAIT=1, VALET=2, LOANER=3),
+        // then by urgency, status, and creation date
         .sort((a, b) => {
+          // First sort by priority
+          if ((a.priority || 1) !== (b.priority || 1)) {
+            return (a.priority || 1) - (b.priority || 1);
+          }
+          
+          // Then by urgency
           if (a.isUrgent !== b.isUrgent) return b.isUrgent ? 1 : -1;
+          
+          // Then by status
           if (a.status !== b.status) {
             if (a.status === 'pending') return -1;
             if (b.status === 'pending') return 1;
           }
+          
+          // Finally by creation date
           return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         });
       
@@ -134,6 +145,31 @@ const ActiveRepairOrdersTable: React.FC<ActiveRepairOrdersTableProps> = ({ repai
     }
   };
   
+  // Priority badge - New component
+  const PriorityBadge: React.FC<{ priority?: number }> = ({ priority }) => {
+    const priorityLevel = priority || 1;
+    
+    if (priorityLevel === 1) {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+          <Zap className="w-3 h-3 mr-1" /> WAIT
+        </span>
+      );
+    } else if (priorityLevel === 2) {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+          <Tag className="w-3 h-3 mr-1" /> VALET
+        </span>
+      );
+    } else {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          <Clock className="w-3 h-3 mr-1" /> LOANER
+        </span>
+      );
+    }
+  };
+  
   // Difficulty level badge
   const DifficultyBadge: React.FC<{ level?: number }> = ({ level }) => {
     const difficultyLevel = level || 1;
@@ -152,8 +188,8 @@ const ActiveRepairOrdersTable: React.FC<ActiveRepairOrdersTableProps> = ({ repai
     );
   };
   
-// Updated Urgency Indicator component
-const UrgencyIndicator: React.FC<{ minutes: number }> = ({ minutes }) => {
+  // Updated Urgency Indicator component
+  const UrgencyIndicator: React.FC<{ minutes: number }> = ({ minutes }) => {
     // Format for hours and minutes when over 60 minutes
     const formatTime = (totalMinutes: number) => {
       const hours = Math.floor(totalMinutes / 60);
@@ -183,6 +219,7 @@ const UrgencyIndicator: React.FC<{ minutes: number }> = ({ minutes }) => {
       return <span className="text-gray-500">{minutes}m</span>;
     }
   };
+  
   // EmptyState component when there are no orders
   const EmptyState: React.FC = () => (
     <div className="text-center py-10">
@@ -233,10 +270,10 @@ const UrgencyIndicator: React.FC<{ minutes: number }> = ({ minutes }) => {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Difficulty
+                  Priority
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Submitted
+                  Difficulty
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Wait Time
@@ -247,7 +284,7 @@ const UrgencyIndicator: React.FC<{ minutes: number }> = ({ minutes }) => {
               {orders.map((order) => (
                 <tr 
                   key={order.id} 
-                  className={`hover:bg-gray-50 ${order.isUrgent ? 'urgent-row' : ''}`}
+                  className={`hover:bg-pink-50 ${order.isUrgent ? 'urgent-row' : ''}`}
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {order.description || (order.id ? `#${order.id.slice(-6)}` : 'N/A')}
@@ -256,10 +293,10 @@ const UrgencyIndicator: React.FC<{ minutes: number }> = ({ minutes }) => {
                     <StatusBadge status={order.status} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <DifficultyBadge level={order.difficulty_level} />
+                    <PriorityBadge priority={order.priority} />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(order.createdAt)}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <DifficultyBadge level={order.difficulty_level} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <UrgencyIndicator minutes={order.minutesElapsed || 0} />

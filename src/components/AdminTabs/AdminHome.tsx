@@ -13,10 +13,11 @@ interface Technician {
   name: string;
   email: string;
   role: string;
+  skill_level?: number;
 }
 
 const AdminHome: React.FC = () => {
-  const { repairOrders } = useRepairOrders();
+  const { repairOrders, pendingOrders } = useRepairOrders();
   const [timeRange, setTimeRange] = useState<"day" | "week" | "month" | "year">("day");
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [trendData, setTrendData] = useState({ 
@@ -261,8 +262,9 @@ const AdminHome: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Active Repair Orders Table */}
         <div className="lg:col-span-2">
+          {/* Use pendingOrders from context to ensure it's synchronized with Queue Management */}
           <ActiveRepairOrdersTable 
-            repairOrders={repairOrders.filter(order => order.status === 'pending')} 
+            repairOrders={pendingOrders || repairOrders.filter(order => order.status === 'pending')} 
           />
         </div>
         
