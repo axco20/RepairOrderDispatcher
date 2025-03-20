@@ -75,7 +75,7 @@ const QueueManagement: React.FC = () => {
   // Load data on component mount
   useEffect(() => {
     refreshOrders();
-  }, [refreshOrders]);
+  }, []);
   
   // Group orders by priority
   useEffect(() => {
