@@ -71,11 +71,30 @@ const QueueManagement: React.FC = () => {
   });
   const [isEditingDifficulty, setIsEditingDifficulty] = useState<string | null>(null);
   const [newDifficultyLevel, setNewDifficultyLevel] = useState<number>(1);
+  const [isEditingPriority, setIsEditingPriority] = useState<string | null>(null);
+  const [newPriorityLevel, setNewPriorityLevel] = useState<number>(1);
+  const [actionMenuId, setActionMenuId] = useState<string | null>(null);
+  
+  // For auto-scrolling during drag
+  const [autoScrolling, setAutoScrolling] = useState(false);
+  const [scrollInterval, setScrollInterval] = useState<NodeJS.Timeout | null>(null);
+  
+  // Ref for detecting clicks outside the menu
+  const menuRef = React.useRef<HTMLDivElement>(null);
   
   // Load data on component mount
   useEffect(() => {
     refreshOrders();
   }, []);
+  
+  // Clean up auto-scroll interval on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollInterval) {
+        clearInterval(scrollInterval);
+      }
+    };
+  }, [scrollInterval]);
   
   // Group orders by priority
   useEffect(() => {
@@ -136,6 +155,12 @@ const QueueManagement: React.FC = () => {
     if (e.currentTarget.classList) {
       e.currentTarget.classList.remove('opacity-50');
     }
+    // Clear any auto-scrolling
+    if (scrollInterval) {
+      clearInterval(scrollInterval);
+      setScrollInterval(null);
+    }
+    setAutoScrolling(false);
   };
   
   // Handle drag over
@@ -143,6 +168,40 @@ const QueueManagement: React.FC = () => {
     e.preventDefault();
     if (draggedOrder !== orderId) {
       setDragOverOrder(orderId);
+    }
+    
+    // Auto-scrolling logic
+    const { clientY } = e;
+    const scrollThreshold = 100; // Pixels from top/bottom edge to trigger scrolling
+    const scrollSpeed = 10; // Pixels to scroll per interval
+    const scrollStep = 5; // How many pixels to scroll in each step
+    
+    const viewportHeight = window.innerHeight;
+    const isNearTop = clientY < scrollThreshold;
+    const isNearBottom = clientY > viewportHeight - scrollThreshold;
+    
+    // Clear any existing interval
+    if (scrollInterval) {
+      clearInterval(scrollInterval);
+      setScrollInterval(null);
+    }
+    
+    // Set up new auto-scrolling if needed
+    if (isNearTop || isNearBottom) {
+      if (!autoScrolling) {
+        const interval = setInterval(() => {
+          if (isNearTop) {
+            window.scrollBy(0, -scrollStep);
+          } else if (isNearBottom) {
+            window.scrollBy(0, scrollStep);
+          }
+        }, scrollSpeed);
+        
+        setScrollInterval(interval);
+        setAutoScrolling(true);
+      }
+    } else {
+      setAutoScrolling(false);
     }
   };
   
@@ -306,6 +365,8 @@ const QueueManagement: React.FC = () => {
   const handleEditDifficulty = (orderId: string, currentLevel: number = 1) => {
     setIsEditingDifficulty(orderId);
     setNewDifficultyLevel(currentLevel);
+    // Close any other edit mode
+    setIsEditingPriority(null);
   };
 
   // Save difficulty level changes
@@ -333,6 +394,88 @@ const QueueManagement: React.FC = () => {
       setIsEditingDifficulty(null);
     }
   };
+
+  // Start editing priority level
+  const handleEditPriority = (orderId: string, currentPriority: number = 1) => {
+    setIsEditingPriority(orderId);
+    setNewPriorityLevel(currentPriority);
+    // Close any other edit mode
+    setIsEditingDifficulty(null);
+  };
+
+  // Save priority level changes
+  const handleSavePriority = async (orderId: string) => {
+    try {
+      const success = await updatePriority(orderId, newPriorityLevel);
+      if (success) {
+        toast.success(`Updated priority to ${PRIORITY_CONFIG[newPriorityLevel].label}`);
+        await refreshOrders();
+      } else {
+        toast.error("Failed to update priority");
+      }
+    } catch (err) {
+      console.error("Error saving priority:", err);
+      toast.error("Error updating priority");
+    } finally {
+      setIsEditingPriority(null);
+    }
+  };
+
+  // Close all edit modes when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Close menu
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setActionMenuId(null);
+      }
+      
+      // Close edit modes if clicked outside of their components
+      // This is simplified logic - for more complex scenarios, you might need more refs
+      const target = event.target as HTMLElement;
+      if (!target.closest('select') && !target.closest('button')) {
+        setIsEditingDifficulty(null);
+        setIsEditingPriority(null);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Toggle action menu
+  const toggleActionMenu = (e: React.MouseEvent, orderId: string) => {
+    e.stopPropagation(); // Prevent event bubbling
+    setActionMenuId(current => current === orderId ? null : orderId);
+  };
+
+  // Delete order
+  const deleteOrder = async (orderId: string) => {
+    try {
+      const confirmed = window.confirm("Are you sure you want to delete this repair order?");
+      
+      if (!confirmed) return;
+      
+      const { error } = await supabase
+        .from('repair_orders')
+        .delete()
+        .eq('id', orderId);
+      
+      if (error) {
+        console.error("Error deleting order:", error);
+        toast.error("Failed to delete repair order");
+      } else {
+        toast.success("Repair order deleted successfully");
+        await refreshOrders();
+      }
+    } catch (err) {
+      console.error("Error deleting order:", err);
+      toast.error("Error deleting repair order");
+    } finally {
+      setActionMenuId(null);
+    }
+  };
   
   return (
     <div className="p-6">
@@ -344,18 +487,10 @@ const QueueManagement: React.FC = () => {
             <Menu className="mr-2 h-5 w-5 text-indigo-600" />
             Queue Overview
           </h2>
-          <div className="grid grid-cols-3 gap-4 mt-4">
-            <div className="text-center p-3 bg-gray-50 rounded">
+          <div className="mt-4 text-center">
+            <div className="p-4 bg-gray-50 rounded">
               <p className="text-sm text-gray-700">Pending</p>
-              <p className="text-xl font-bold text-indigo-600">{pendingOrders?.length || 0}</p>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <p className="text-sm text-gray-700">In Progress</p>
-              <p className="text-xl font-bold text-yellow-500">{inProgressOrders?.length || 0}</p>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <p className="text-sm text-gray-700">Completed</p>
-              <p className="text-xl font-bold text-green-600">{completedOrders?.length || 0}</p>
+              <p className="text-3xl font-bold text-indigo-600">{pendingOrders?.length || 0}</p>
             </div>
           </div>
         </div>
@@ -367,184 +502,180 @@ const QueueManagement: React.FC = () => {
         </div>
       </div>
       
-      {/* Skill Level Legend */}
-      <div className="bg-white rounded-lg shadow mb-6 p-4">
-        <h3 className="text-md font-semibold mb-2 flex items-center">
-          <BarChart2 className="mr-2 h-5 w-5 text-indigo-600" />
-          Difficulty Levels
-        </h3>
-        <div className="flex flex-wrap gap-4">
-          {Object.entries(DIFFICULTY_CONFIG).map(([level, config]) => (
-            <div key={level} className="flex items-center">
-              <div className={`w-3 h-3 rounded-full ${config.color} mr-1`}></div>
-              <span className="text-sm">Level {level}: {config.label}</span>
-            </div>
-          ))}
+      {/* Combined Repair Orders Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+          <h3 className="font-semibold text-gray-800">All Repair Orders</h3>
+          <div className="flex items-center space-x-4">
+            <span className="flex items-center text-xs">
+              <div className="w-3 h-3 rounded-full bg-red-100 mr-1"></div>
+              WAIT: {ordersByPriority[1]?.length || 0}
+            </span>
+            <span className="flex items-center text-xs">
+              <div className="w-3 h-3 rounded-full bg-yellow-100 mr-1"></div>
+              VALET: {ordersByPriority[2]?.length || 0}
+            </span>
+            <span className="flex items-center text-xs">
+              <div className="w-3 h-3 rounded-full bg-green-100 mr-1"></div>
+              LOANER: {ordersByPriority[3]?.length || 0}
+            </span>
+          </div>
         </div>
-        <p className="text-xs text-gray-500 mt-2">
-          Technicians can only work on repair orders with difficulty levels equal to or below their skill level.
-        </p>
-      </div>
-      
-      <div className="space-y-6">
-        {/* Priority Sections */}
-        {Object.entries(ordersByPriority).sort((a, b) => Number(a[0]) - Number(b[0])).map(([priority, orders]) => {
-          const priorityNum = Number(priority);
-          const config = PRIORITY_CONFIG[priorityNum] || {
-            label: 'Unknown', 
-            color: 'bg-gray-100 text-gray-800',
-            icon: null
-          };
-          
-          return (
-            <div 
-              key={priority}
-              className="bg-white rounded-lg shadow overflow-hidden"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => handleDropOnSection(e, priorityNum)}
-            >
-              <div 
-                className={`px-4 py-3 border-b border-gray-200 flex justify-between items-center ${config.color} bg-opacity-20`}
-              >
-                <button
-                  onClick={() => toggleSection(priorityNum)}
-                  className="flex items-center font-semibold focus:outline-none w-full text-left"
-                >
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center mr-2 ${config.color}`}>
-                    {config.icon}
-                  </div>
-                  {config.label} Priority
-                  <span className="ml-2 bg-white bg-opacity-70 rounded-full px-2 py-0.5 text-xs">
-                    {orders.length}
-                  </span>
-                  <span className="ml-auto">
-                    {expandedPriorities[priorityNum] ? (
-                      <ArrowUp className="h-4 w-4" />
-                    ) : (
-                      <ArrowDown className="h-4 w-4" />
-                    )}
-                  </span>
-                </button>
-              </div>
-              
-              {expandedPriorities[priorityNum] && (
-                <div className="p-4">
-                  {orders.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <p>No orders with {config.label} priority</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {orders.map((order, index) => (
-                        <div
-                          key={order.id}
-                          className={`border rounded-md p-3 ${
-                            dragOverOrder === order.id 
-                              ? 'border-indigo-500 bg-indigo-50' 
-                              : 'border-gray-200 bg-white'
-                          } ${
-                            draggedOrder === order.id ? 'opacity-50' : ''
-                          } transition-all duration-200`}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, order.id)}
-                          onDragEnd={handleDragEnd}
-                          onDragOver={(e) => handleDragOver(e, order.id)}
-                          onDrop={(e) => handleDrop(e, order.id, priorityNum)}
-                          data-order-id={order.id}
-                          data-order-index={index}
-                        >
-                          <div className="flex items-center">
-                            <div className="flex flex-col mr-2 text-gray-400">
-                              {index > 0 && (
-                                <button 
-                                  onClick={() => moveOrderUp(order.id, priorityNum)}
-                                  className="p-1 hover:bg-gray-100 rounded"
-                                >
-                                  <ArrowUp className="h-4 w-4" />
-                                </button>
-                              )}
-                              {index < orders.length - 1 && (
-                                <button 
-                                  onClick={() => moveOrderDown(order.id, priorityNum)}
-                                  className="p-1 hover:bg-gray-100 rounded"
-                                >
-                                  <ArrowDown className="h-4 w-4" />
-                                </button>
-                              )}
-                              {orders.length <= 1 && (
-                                <MoveVertical className="h-4 w-4 opacity-25" />
-                              )}
-                            </div>
-                            <GripVertical className="h-5 w-5 text-gray-400 cursor-move mr-2" />
-                            <div className="flex-1">
-                              <div className="font-medium text-gray-900">
-                                {order.description}
-                              </div>
-                              <div className="flex items-center mt-1">
-                                <div className="text-xs text-gray-500 mr-3">
-                                  ID: {order.id?.substring(0, 8) || "unknown"}
-                                </div>
-                                
-                                {/* Difficulty Level */}
-                                {isEditingDifficulty === order.id ? (
-                                  <div className="flex items-center">
-                                    <select
-                                      value={newDifficultyLevel}
-                                      onChange={(e) => setNewDifficultyLevel(parseInt(e.target.value))}
-                                      className="text-xs border rounded p-1 mr-2"
-                                    >
-                                      <option value={1}>Level 1 (Basic)</option>
-                                      <option value={2}>Level 2 (Intermediate)</option>
-                                      <option value={3}>Level 3 (Advanced)</option>
-                                    </select>
-                                    <button
-                                      onClick={() => handleSaveDifficulty(order.id)}
-                                      className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
-                                    >
-                                      Save
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div 
-                                    className={`flex items-center px-2 py-1 text-xs font-medium rounded-full cursor-pointer ${
-                                      DIFFICULTY_CONFIG[order.difficulty_level || 1].color
-                                    }`}
-                                    onClick={() => handleEditDifficulty(order.id, order.difficulty_level || 1)}
-                                  >
-                                    <BarChart2 className="w-3 h-3 mr-1" />
-                                    Level {order.difficulty_level || 1}
-                                    ({DIFFICULTY_CONFIG[order.difficulty_level || 1].label})
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex space-x-2 items-center">
-                              <span className="text-xs text-gray-500">
-                                {new Date(order.createdAt).toLocaleDateString()}
-                              </span>
-                              <div className="relative">
-                                <button 
-                                  className="p-1 rounded-full hover:bg-gray-100"
-                                >
-                                  <MoreHorizontal className="h-4 w-4 text-gray-500" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+        
+        <div className="p-4">
+          {pendingOrders?.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>No pending repair orders</p>
             </div>
-          );
-        })}
+          ) : (
+            <div className="space-y-2">
+              {/* Combine all orders while preserving priority */}
+              {Object.entries(ordersByPriority)
+                .sort((a, b) => Number(a[0]) - Number(b[0])) // Sort by priority (1, 2, 3)
+                .flatMap(([priority, orders]) => {
+                  const priorityNum = Number(priority);
+                  return orders.map((order, index) => {
+                    const config = PRIORITY_CONFIG[priorityNum];
+                    return {
+                      ...order,
+                      priorityConfig: config,
+                      priorityNum,
+                      indexInPriority: index,
+                      ordersInSamePriority: orders.length
+                    };
+                  });
+                })
+                .map((order) => (
+                  <div
+                    key={order.id}
+                    className={`border rounded-md p-3 ${
+                      dragOverOrder === order.id 
+                        ? 'border-indigo-500 bg-indigo-50' 
+                        : 'border-gray-200 bg-white'
+                    } ${
+                      draggedOrder === order.id ? 'opacity-50' : ''
+                    } transition-all duration-200`}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, order.id)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => handleDragOver(e, order.id)}
+                    onDrop={(e) => handleDrop(e, order.id, order.priorityNum)}
+                    data-order-id={order.id}
+                    data-order-index={order.indexInPriority}
+                  >
+                    <div className="flex items-center">
+                      <GripVertical className="h-5 w-5 text-gray-400 cursor-move mr-3" />
+                      
+                      <div className="flex flex-col mr-4">
+                        {/* Priority Badge */}
+                        {isEditingPriority === order.id ? (
+                          <div className="mb-1">
+                            <select
+                              value={newPriorityLevel}
+                              onChange={(e) => setNewPriorityLevel(parseInt(e.target.value))}
+                              className="text-xs border rounded p-1 mr-2"
+                            >
+                              <option value={1}>WAIT</option>
+                              <option value={2}>VALET</option>
+                              <option value={3}>LOANER</option>
+                            </select>
+                            <button
+                              onClick={() => handleSavePriority(order.id)}
+                              className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        ) : (
+                          <div 
+                            className={`flex items-center px-2 py-1 text-xs font-medium rounded-full mb-1 ${order.priorityConfig.color} cursor-pointer`}
+                            onClick={() => handleEditPriority(order.id, order.priorityNum)}
+                          >
+                            {order.priorityConfig.icon}
+                            <span className="ml-1">{order.priorityConfig.label}</span>
+                          </div>
+                        )}
+                        
+                        {/* Difficulty Level - Now under the priority badge */}
+                        {isEditingDifficulty === order.id ? (
+                          <div>
+                            <select
+                              value={newDifficultyLevel}
+                              onChange={(e) => setNewDifficultyLevel(parseInt(e.target.value))}
+                              className="text-xs border rounded p-1 mr-2"
+                            >
+                              <option value={1}>Level 1 (Basic)</option>
+                              <option value={2}>Level 2 (Intermediate)</option>
+                              <option value={3}>Level 3 (Advanced)</option>
+                            </select>
+                            <button
+                              onClick={() => handleSaveDifficulty(order.id)}
+                              className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        ) : (
+                          <div 
+                            className={`flex items-center px-2 py-1 text-xs font-medium rounded-full cursor-pointer ${
+                              DIFFICULTY_CONFIG[order.difficulty_level || 1].color
+                            }`}
+                            onClick={() => handleEditDifficulty(order.id, order.difficulty_level || 1)}
+                          >
+                            <BarChart2 className="w-3 h-3 mr-1" />
+                            Level {order.difficulty_level || 1}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">
+                          {order.description}
+                        </div>
+                      </div>
+                      <div className="flex space-x-2 items-center">
+                        <span className="text-xs text-gray-500">
+                          {new Date(order.createdAt).toLocaleDateString()}
+                        </span>
+                        
+                        <div className="relative" ref={actionMenuId === order.id ? menuRef : null}>
+                          <button 
+                            className="p-1 rounded-full hover:bg-gray-100 focus:outline-none"
+                            onClick={(e) => toggleActionMenu(e, order.id)}
+                            aria-label="Actions"
+                          >
+                            <MoreHorizontal className="h-5 w-5 text-gray-500" />
+                          </button>
+                          
+                          {actionMenuId === order.id && (
+                            <div 
+                              className="absolute right-0 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50"
+                              style={{ minWidth: '120px' }}
+                            >
+                              <div className="py-1" role="menu" aria-orientation="vertical">
+                                <button
+                                  className="text-red-600 hover:bg-gray-100 hover:text-red-700 w-full text-left px-4 py-2 text-sm"
+                                  onClick={() => deleteOrder(order.id)}
+                                  role="menuitem"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
       </div>
       
-      <div className="bg-white rounded-lg shadow mt-6 p-4">
+      <div className="bg-white rounded-lg shadow mt-4 p-4">
         <p className="text-sm text-gray-500">
-          <strong>Note:</strong> Orders are dispatched to technicians based on their skill level and priority level (WAIT → VALET → LOANER), then by the time they were added to the queue.
+          <strong>Note:</strong> Orders are dispatched based on priority level (WAIT → VALET → LOANER), then by order position in the queue.
         </p>
       </div>
     </div>
