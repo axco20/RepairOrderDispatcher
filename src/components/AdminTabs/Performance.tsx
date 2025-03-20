@@ -44,36 +44,62 @@ const Performance: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Combine orders and technicians fetching into one effect
-  useEffect(() => {
-    const fetchAllData = async () => {
-      try {
-        setIsLoading(true);
-  
-        // Refresh orders
-        await refreshOrders();
-  
-        // Fetch technicians
-        const { data, error } = await supabase
-          .from("users")
-          .select("id, auth_id, name, email, role")
-          .eq("role", "technician");
-  
-        if (error) {
-          console.error("Error fetching technicians:", error);
-          setError("Failed to fetch technicians");
-        } else if (data) {
-          setTechnicians(data);
-        }
-      } catch (err) {
-        console.error("Error in fetchAllData:", err);
-        setError("An unexpected error occurred while fetching data");
-      } finally {
-        setIsLoading(false);
+  // Modify the combined data fetching in useEffect
+useEffect(() => {
+  const fetchAllData = async () => {
+    try {
+      setIsLoading(true);
+
+      // 1. Get the current user
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user?.id) {
+        console.error("Error fetching current user:", userError);
+        setError("Failed to authenticate user");
+        return;
       }
-    };
-  
-    fetchAllData();
-  }, []); // run only once on mount
+
+      // 2. Get the current user's dealership_id
+      const { data: currentUserData, error: currentUserError } = await supabase
+        .from("users")
+        .select("dealership_id")
+        .eq("auth_id", userData.user.id)
+        .single();
+
+      if (currentUserError || !currentUserData?.dealership_id) {
+        console.error("Error fetching user dealership ID:", currentUserError);
+        setError("Failed to retrieve dealership information");
+        return;
+      }
+
+      const dealershipId = currentUserData.dealership_id;
+      console.log("Current user's dealership ID:", dealershipId);
+
+      // 3. Refresh orders (assuming this now fetches all orders, we'll filter later)
+      await refreshOrders();
+
+      // 4. Fetch technicians with the same dealership_id
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, auth_id, name, email, role")
+        .eq("role", "technician")
+        .eq("dealership_id", dealershipId);
+
+      if (error) {
+        console.error("Error fetching technicians:", error);
+        setError("Failed to fetch technicians");
+      } else if (data) {
+        setTechnicians(data);
+      }
+    } catch (err) {
+      console.error("Error in fetchAllData:", err);
+      setError("An unexpected error occurred while fetching data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  fetchAllData();
+}, []); // run only once on mount
 
   const getTechnicianName = useCallback((technicianId?: string) => {
     if (!technicianId) return 'Unknown';
@@ -123,74 +149,76 @@ const Performance: React.FC = () => {
         const completedOrders = repairOrders.filter(order => {
           if (order.status !== 'completed') return false;
           if (!order.assignedTo) return false;
-          
-          if (order.completedAt) {
-            const completedDate = new Date(order.completedAt);
-            return completedDate >= startDate && completedDate <= endDate;
-          }
-          if (order.updatedAt) {
-            const updatedDate = new Date(order.updatedAt);
-            return updatedDate >= startDate && updatedDate <= endDate;
-          }
-          return false;
+      
+          const completedDate = order.completedAt
+            ? new Date(order.completedAt)
+            : order.updatedAt
+            ? new Date(order.updatedAt)
+            : null;
+      
+          return completedDate && completedDate >= startDate && completedDate <= endDate;
         });
-        
+      
         console.log(`Found ${completedOrders.length} completed orders in date range`);
-        
-        const techStats: Record<string, TechnicianPerformance> = {};
-        
+      
+        const techStats = new Map<string, TechnicianPerformance>();
+      
+        // Ensure every technician is in the stats, even if they have 0 completed
         technicians.forEach(tech => {
-          techStats[tech.id] = {
-            technicianId: tech.id,
+          techStats.set(tech.auth_id, {
+            technicianId: tech.auth_id,
             technicianName: tech.name,
             completedCount: 0,
             totalTimeMs: 0,
             averageTimeMs: 0,
             averageMinutes: 0
-          };
+          });
         });
-        
+      
         completedOrders.forEach(order => {
           const technicianId = order.assignedTo;
           if (!technicianId) return;
-          if (!techStats[technicianId]) {
-            techStats[technicianId] = {
-              technicianId,
-              technicianName: getTechnicianName(technicianId),
+      
+          const technician = technicians.find(t => t.auth_id === technicianId || t.id === technicianId);
+          if (!technician) return;
+      
+          const technicianKey = technician.auth_id;
+      
+          if (!techStats.has(technicianKey)) {
+            techStats.set(technicianKey, {
+              technicianId: technicianKey,
+              technicianName: technician.name,
               completedCount: 0,
               totalTimeMs: 0,
               averageTimeMs: 0,
               averageMinutes: 0
-            };
+            });
           }
-          
-          if (order.assignedAt && (order.completedAt || order.updatedAt)) {
-            const startTime = new Date(order.assignedAt).getTime();
-            const endTime = order.completedAt 
-              ? new Date(order.completedAt).getTime() 
-              : new Date(order.updatedAt as string).getTime();
-            const timeToComplete = endTime - startTime;
+      
+          const techRecord = techStats.get(technicianKey)!;
+          techRecord.completedCount += 1;
+      
+          if (order.assignedAt && order.completedAt) {
+            const timeToComplete =
+              new Date(order.completedAt).getTime() - new Date(order.assignedAt).getTime();
             if (timeToComplete > 0) {
-              techStats[technicianId].completedCount += 1;
-              techStats[technicianId].totalTimeMs += timeToComplete;
-            } else {
-              techStats[technicianId].completedCount += 1;
+              techRecord.totalTimeMs += timeToComplete;
             }
-          } else {
-            techStats[technicianId].completedCount += 1;
           }
         });
-        
-        Object.values(techStats).forEach((stat) => {
+      
+        // Calculate averages
+        techStats.forEach(stat => {
           if (stat.completedCount > 0 && stat.totalTimeMs > 0) {
             stat.averageTimeMs = Math.round(stat.totalTimeMs / stat.completedCount);
             stat.averageMinutes = Math.round(stat.averageTimeMs / (1000 * 60));
           }
         });
-        
-        return Object.values(techStats)
-          .sort((a, b) => b.completedCount - a.completedCount);
+      
+        return Array.from(techStats.values()).sort((a, b) => b.completedCount - a.completedCount);
       };
+      
+      
       
       const performanceData = calculateTechPerformance();
       console.log('Performance data calculated:', performanceData);

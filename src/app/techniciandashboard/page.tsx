@@ -40,43 +40,45 @@ export default function TechnicianDashboard() {
   useEffect(() => {
     const fetchTechDetails = async () => {
       if (!currentUser) return;
-      
+  
       try {
-        // Get technician skill level
-        const { data, error } = await supabase
+        // Get technician details (dealership_id)
+        const { data: techData, error: techError } = await supabase
           .from("users")
-          .select("skill_level")
+          .select("dealership_id, skill_level")
           .eq("auth_id", currentUser.id)
           .single();
-        
-        if (error) {
-          console.error("Error fetching technician skill level:", error);
+  
+        if (techError || !techData?.dealership_id) {
+          console.error("Error fetching technician dealership:", techError);
           return;
         }
-        
-        const skillLevel = data?.skill_level || 1;
-        setTechSkillLevel(skillLevel);
-        
-        // Get count of orders available for this technician's skill level
+  
+        const { dealership_id, skill_level } = techData;
+        setTechSkillLevel(skill_level || 1);
+  
+        // Count pending orders that match technician's skill level & dealership
         const { data: matchingOrders, error: countError } = await supabase
           .from("repair_orders")
           .select("id")
           .eq("status", "pending")
-          .lte("difficulty_level", skillLevel);
-          
+          .eq("dealership_id", dealership_id) // ✅ Only count orders from same dealership
+          .lte("difficulty_level", skill_level);
+  
         if (countError) {
           console.error("Error counting available orders:", countError);
           return;
         }
-        
+  
         setAvailableOrdersCount(matchingOrders?.length || 0);
       } catch (err) {
         console.error("Error in fetchTechDetails:", err);
       }
     };
-
+  
     fetchTechDetails();
   }, [currentUser, pendingOrders]);
+  
 
   // FIX: Only run once on mount instead of on every render
   useEffect(() => {
@@ -89,6 +91,7 @@ export default function TechnicianDashboard() {
 
   const myOrders = technicianOrders(currentUser.id);
   const activeOrders = myOrders.filter(order => order.status === "in_progress");
+  const onHoldOrders = myOrders.filter(order => order.status === "on_hold"); 
   const activeOrderCount = technicianActiveOrderCount(currentUser.id);
   const canGetNewOrder = canRequestNewOrder(currentUser.id);
 
@@ -155,6 +158,8 @@ export default function TechnicianDashboard() {
         onNavigate={setActivePage}
         onLogout={handleLogout}
         activeOrdersCount={activeOrders.length}
+        onHoldOrdersCount={onHoldOrders.length} 
+
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">

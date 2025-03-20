@@ -136,19 +136,21 @@ export default function ActiveOrders() {
                     <tr key={order.id}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {/* Shortened ID for better display */}
-                          {order.id.substring(0, 8)}...
+                          {order.description}
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {order.description}
+                        <div
+                          className={`text-sm ${
+                            order.orderDescription
+                              ? "text-gray-900"
+                              : "text-gray-400 italic"
+                          }`}
+                        >
+                          {order.orderDescription
+                            ? order.orderDescription
+                            : "No Description"}
                         </div>
-                        {order.orderDescription && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            {order.orderDescription}
-                          </div>
-                        )}
                       </td>
                       <td className="px-6 py-4 relative">
                         <div className="flex items-center">

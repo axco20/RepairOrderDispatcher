@@ -114,44 +114,50 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
   const refreshOrders = async () => {
     try {
       setLoading(true);
+  
+      // Step 1: Get the logged-in user's dealership_id
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user?.id) {
+        console.error("Error fetching user:", userError);
+        return;
+      }
+  
+      const { data: userDetails, error: userDetailsError } = await supabase
+        .from("users")
+        .select("dealership_id")
+        .eq("auth_id", userData.user.id)
+        .single();
+  
+      if (userDetailsError || !userDetails?.dealership_id) {
+        console.error("Error fetching dealership ID:", userDetailsError);
+        return;
+      }
+  
+      const dealershipId = userDetails.dealership_id;
+  
+      // Step 2: Fetch only orders that belong to the same dealership
       const { data, error } = await supabase
-        .from('repair_orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
+        .from("repair_orders")
+        .select("*")
+        .eq("dealership_id", dealershipId) // ✅ Filters by dealership
+        .order("created_at", { ascending: false });
+  
       if (error) {
         throw new Error(error.message);
       }
-      
-      // Print first record for debugging
-      if (data && data.length > 0) {
-        console.log("First record from database:", data[0]);
-      }
-      
-      // Convert snake_case from DB to camelCase for our interface
-      const camelCaseData = data ? data.map(item => {
-        const camelItem = toCamelCase(item);
-        
-        // Explicitly preserve difficulty_level
-        camelItem.difficulty_level = item.difficulty_level !== null ? item.difficulty_level : 1;
-        
-        // Ensure technician_id is properly mapped to assignedTo
-        if (item.assigned_to) {
-          camelItem.assignedTo = item.assigned_to;
-        }
-        
-        return camelItem;
-      }) : [];
-      
+  
+      // Convert to camelCase and update state
+      const camelCaseData = data ? data.map(toCamelCase) : [];
       setRepairOrders(camelCaseData);
       setError(null);
     } catch (err) {
-      console.error('Error loading repair orders:', err);
-      setError('Failed to load repair orders');
+      console.error("Error loading repair orders:", err);
+      setError("Failed to load repair orders");
     } finally {
       setLoading(false);
     }
   };
+  
 
   // Fetch assignments
   const fetchAssignments = async () => {
@@ -631,30 +637,33 @@ const getNextRepairOrder = async (technicianId: string): Promise<boolean> => {
       return false;
     }
 
-    // Get the technician's skill level
+    // Get the technician's skill level and dealership ID
     const { data: techData, error: techError } = await supabase
       .from("users")
-      .select("skill_level")
+      .select("skill_level, dealership_id") // Fetch both skill level and dealership ID
       .eq("auth_id", technicianId)
       .single();
 
-    if (techError) {
-      console.error("❌ Error fetching technician skill level:", techError);
+    if (techError || !techData?.dealership_id) {
+      console.error("❌ Error fetching technician details (skill level or dealership ID missing):", techError);
       return false;
     }
 
-    const techSkillLevel = techData?.skill_level || 1; // Default to level 1 if not set
-    console.log(`🧠 Technician skill level: ${techSkillLevel}`);
+    const techSkillLevel = techData.skill_level || 1; // Default skill level 1 if not set
+    const dealershipId = techData.dealership_id; // Get technician's dealership ID
 
-    // Fetch pending orders that match the technician's skill level or lower
-    // Order by priority first (lowest priority value = highest priority), then by creation date (oldest first)
+    console.log(`🧠 Technician skill level: ${techSkillLevel}`);
+    console.log(`🏢 Technician dealership ID: ${dealershipId}`);
+
+    // Fetch pending orders from the same dealership that match the technician's skill level
     const { data: matchingOrders, error } = await supabase
       .from("repair_orders")
       .select("*")
       .eq("status", "pending")
+      .eq("dealership_id", dealershipId) // ✅ Ensure orders are from the same dealership
       .lte("difficulty_level", techSkillLevel) // Only orders with difficulty <= tech skill
       .order("priority", { ascending: true }) // Highest priority first (WAIT=1, VALET=2, LOANER=3)
-      .order("created_at", { ascending: true }); // Oldest first
+      .order("created_at", { ascending: true }); // Oldest orders first
 
     if (error) {
       console.error("❌ Error fetching matching orders:", error);
@@ -662,7 +671,7 @@ const getNextRepairOrder = async (technicianId: string): Promise<boolean> => {
     }
 
     if (!matchingOrders || matchingOrders.length === 0) {
-      console.warn(`⚠️ No pending repair orders found matching technician skill level ${techSkillLevel}.`);
+      console.warn(`⚠️ No pending repair orders found for dealership ${dealershipId} with skill level ${techSkillLevel}.`);
       return false;
     }
 
@@ -686,6 +695,7 @@ const getNextRepairOrder = async (technicianId: string): Promise<boolean> => {
     return false;
   }
 };
+
   // Context value
   const value = {
     repairOrders,

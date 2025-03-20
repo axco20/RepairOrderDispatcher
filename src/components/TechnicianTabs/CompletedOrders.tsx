@@ -199,16 +199,23 @@ export default function CompletedOrders() {
                 {filteredOrders.map((order) => (
                   <tr key={order.id}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {order.id.substring(0, 8)}...
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{order.description}</div>
-                      {order.orderDescription && (
-                        <div className="text-xs text-gray-500 mt-1">{order.orderDescription}</div>
-                      )}
-                    </td>
+                        <div className="text-sm font-medium text-gray-900">
+                          {order.description}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div
+                          className={`text-sm ${
+                            order.orderDescription
+                              ? "text-gray-900"
+                              : "text-gray-400 italic"
+                          }`}
+                        >
+                          {order.orderDescription
+                            ? order.orderDescription
+                            : "No Description"}
+                        </div>
+                      </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">
                         {order.assignedAt ? new Date(order.assignedAt).toLocaleString() : "N/A"}

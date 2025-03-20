@@ -30,10 +30,36 @@ const TeamMembers: React.FC = () => {
     fetchMembers();
   }, []);
 
-  const fetchMembers = async () => {
+  // Modify the fetchMembers function
+const fetchMembers = async () => {
+  try {
+    // 1. Get the current user
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user?.id) {
+      console.error("Error fetching current user:", userError);
+      return;
+    }
+
+    // 2. Get the current user's dealership_id
+    const { data: currentUserData, error: currentUserError } = await supabase
+      .from("users")
+      .select("dealership_id")
+      .eq("auth_id", userData.user.id)
+      .single();
+
+    if (currentUserError || !currentUserData?.dealership_id) {
+      console.error("Error fetching user dealership ID:", currentUserError);
+      return;
+    }
+
+    const dealershipId = currentUserData.dealership_id;
+    console.log("Current user's dealership ID:", dealershipId);
+
+    // 3. Get all users with the same dealership_id
     const { data, error } = await supabase
       .from("users")
       .select("*")
+      .eq("dealership_id", dealershipId)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -45,7 +71,10 @@ const TeamMembers: React.FC = () => {
       console.log("Fetched members:", data);
       setMembers(data);
     }
-  };
+  } catch (err) {
+    console.error("Error in fetchMembers:", err);
+  }
+};
 
   const filteredMembers = members.filter(
     (m) =>
@@ -408,7 +437,7 @@ const TeamMembers: React.FC = () => {
 
       {/* Modal for Adding Admin */}
       {isModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur bg-opacity-50 z-50">
           <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
             <h2 className="text-lg font-bold text-white mb-4 text-center">
               Enter Admin Email
@@ -444,7 +473,7 @@ const TeamMembers: React.FC = () => {
 
       {/* Modal for Adding Technician */}
       {isModal2Open && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur bg-opacity-50 z-50">
           <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
             <h2 className="text-lg font-bold text-white mb-4 text-center">
               Enter Technician Email

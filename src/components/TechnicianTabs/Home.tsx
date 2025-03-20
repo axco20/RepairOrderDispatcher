@@ -1,5 +1,4 @@
 "use client";
-// Home.tsx
 import React from "react";
 import { PlusCircle, Loader2 } from "lucide-react";
 
@@ -18,6 +17,8 @@ export default function Home({
   getNextRepairOrder,
   isLoading
 }: HomeProps) {
+  const isButtonDisabled = !canGetNewOrder || isLoading || pendingOrdersCount === 0;
+
   return (
     <div className="space-y-8">
       <h1 className="text-3xl font-bold text-gray-800">Technician Dashboard</h1>
@@ -53,12 +54,17 @@ export default function Home({
         <div className="space-y-4">
           <button
             onClick={getNextRepairOrder}
-            disabled={!canGetNewOrder || isLoading}
+            disabled={isButtonDisabled}
             className={`flex items-center justify-center w-full md:w-auto px-6 py-3 rounded-md text-white font-medium ${
-              canGetNewOrder && !isLoading
-                ? "bg-indigo-600 hover:bg-indigo-700"
-                : "bg-gray-400 cursor-not-allowed"
+              isButtonDisabled
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-indigo-600 hover:bg-indigo-700"
             }`}
+            title={
+              pendingOrdersCount === 0 
+                ? "No pending orders available in the queue" 
+                : "Click to get the next available repair order"
+            }
           >
             {isLoading ? (
               <>
@@ -79,7 +85,7 @@ export default function Home({
             </p>
           )}
           
-          {!canGetNewOrder && pendingOrdersCount === 0 && (
+          {pendingOrdersCount === 0 && (
             <p className="text-amber-600 text-sm mt-2">
               No pending orders available in the queue
             </p>

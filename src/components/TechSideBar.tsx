@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { Home, CheckCircle, HelpCircle, LogOut } from "lucide-react";
+import { Home, CheckCircle, HelpCircle, LogOut, PauseCircle, Wrench } from "lucide-react";
 
-export type PageType = "Home" | "ActiveOrders"| "OnHoldOrders" | "CompletedOrders" | "Help";
+export type PageType = "Home" | "ActiveOrders" | "OnHoldOrders" | "CompletedOrders" | "Help";
 
 interface TechSidebarProps {
   userName: string;
@@ -11,6 +11,7 @@ interface TechSidebarProps {
   onNavigate: (page: PageType) => void;
   onLogout: () => void;
   activeOrdersCount: number;
+  onHoldOrdersCount: number; // NEW PROP for On Hold Orders
 }
 
 const TechSidebar: React.FC<TechSidebarProps> = ({
@@ -19,6 +20,7 @@ const TechSidebar: React.FC<TechSidebarProps> = ({
   onNavigate,
   onLogout,
   activeOrdersCount,
+  onHoldOrdersCount,
 }) => {
   return (
     <div className="w-64 bg-gray-800 text-white flex flex-col h-screen">
@@ -43,11 +45,11 @@ const TechSidebar: React.FC<TechSidebarProps> = ({
       <nav className="flex-1 overflow-y-auto p-2">
         {[
           { name: "Home", icon: Home },
-          { name: "ActiveOrders", icon: CheckCircle },
-          { name: "OnHoldOrders", icon: CheckCircle},
+          { name: "ActiveOrders", icon: Wrench, count: activeOrdersCount },
+          { name: "OnHoldOrders", icon: PauseCircle, count: onHoldOrdersCount }, // OnHoldOrders Counter
           { name: "CompletedOrders", icon: CheckCircle },
           { name: "Help", icon: HelpCircle },
-        ].map(({ name, icon: Icon }) => (
+        ].map(({ name, icon: Icon, count }) => (
           <button
             key={name}
             className={`flex items-center w-full p-3 rounded-md ${
@@ -57,9 +59,9 @@ const TechSidebar: React.FC<TechSidebarProps> = ({
           >
             <Icon size={18} />
             <span className="ml-3">{name}</span>
-            {name === "ActiveOrders" && activeOrdersCount > 0 && (
+            {count && count > 0 && (
               <span className="ml-auto bg-indigo-500 text-white text-xs px-2 py-1 rounded-full">
-                {activeOrdersCount}
+                {count}
               </span>
             )}
           </button>

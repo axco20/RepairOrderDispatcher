@@ -83,6 +83,7 @@ const Orders: React.FC = () => {
 
   // Fetch technicians on mount
   useEffect(() => {
+    if (technicians.length > 0) return;
     const fetchTechnicians = async () => {
       try {
         // 1. Get the currently authenticated user
@@ -124,12 +125,14 @@ const Orders: React.FC = () => {
     };
   
     fetchTechnicians();
-  }, []);
+  }, [technicians.length]);
   
 
   // Refresh orders on mount
   useEffect(() => {
-    refreshOrders();
+    if (repairOrders.length === 0) {
+      refreshOrders();
+    }
   }, []);
 
   // Helper to compute the active order count for a given technician (e.g. orders "in_progress")
@@ -335,23 +338,19 @@ const Orders: React.FC = () => {
   };
 
   // Filter orders based on search query
-  const filteredOrders = repairOrders.filter(
-    (order) =>
-      order.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.orderDescription?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredOrders = useMemo(() => {
+    return repairOrders.filter(
+      (order) =>
+        order.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.orderDescription?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [repairOrders, searchQuery]);
 
   // Group orders by status and (for completed) sort by most recent
-  const pendingOrders = filteredOrders.filter((o) => o.status === "pending");
-  const inProgressOrders = filteredOrders.filter((o) => o.status === "in_progress");
-  const completedOrders = filteredOrders
-    .filter((o) => o.status === "completed")
-    .sort((a: RepairOrder, b: RepairOrder) => {
-      const dateA = a.completedAt ? new Date(a.completedAt) : new Date(a.createdAt || 0);
-      const dateB = b.completedAt ? new Date(b.completedAt) : new Date(b.createdAt || 0);
-      return dateB.getTime() - dateA.getTime();
-    })
-    .slice(0, 50);
+  const pendingOrders = useMemo(() => filteredOrders.filter((o) => o.status === "pending"), [filteredOrders]);
+  const inProgressOrders = useMemo(() => filteredOrders.filter((o) => o.status === "in_progress"), [filteredOrders]);
+  const completedOrders = useMemo(() => filteredOrders.filter((o) => o.status === "completed").slice(0, 50), [filteredOrders]);
+
 
   // Tab configuration
   const tabs = [
