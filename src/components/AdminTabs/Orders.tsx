@@ -11,6 +11,9 @@ import {
   Settings,
   CheckCircle,
   BarChart2,
+  AlertTriangle,
+  Play,
+  Info,
 } from "lucide-react";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { toast } from "react-toastify";
@@ -39,13 +42,15 @@ interface RepairOrder {
   id: string;
   description?: string;
   orderDescription?: string;
-  status: "pending" | "in_progress" | "completed";
+  status: "pending" | "in_progress" | "completed" | "on_hold"; // Added "on_hold"
   priority?: number;
   priorityType?: string;
   difficulty_level?: number; // Added difficulty level
   createdAt?: string;
   completedAt?: string;
   assignedTo?: string;
+  on_hold_description?: string; // Field for hold reason from database
+  onHoldDescription?: string;   // Alternative field name (some systems might use this naming)
 }
 
 const Orders: React.FC = () => {
@@ -71,7 +76,7 @@ const Orders: React.FC = () => {
     priority: 1, // Keeping for backend compatibility
     priorityType: "WAIT" as "WAIT" | "VALET" | "LOANER",
     difficulty_level: 1, // Default difficulty level
-    status: "pending" as "pending" | "in_progress" | "completed",
+    status: "pending" as "pending" | "in_progress" | "completed" | "on_hold",
     assignedTo: "",
     
   });
@@ -80,6 +85,8 @@ const Orders: React.FC = () => {
   const [currentOrderId, setCurrentOrderId] = useState("");
   const [selectedTechnicianOption, setSelectedTechnicianOption] =
     useState<TechnicianOption | null>(null);
+  // State for the hold reason tooltip/modal
+  const [showReasonId, setShowReasonId] = useState<string | null>(null);
 
   // Fetch technicians on mount
   useEffect(() => {
@@ -323,6 +330,67 @@ const Orders: React.FC = () => {
     }
   };
 
+  // Handler for putting an order on hold
+  const handlePutOnHold = async (id: string) => {
+    // Open a dialog to get the hold reason
+    const reason = window.prompt("Please provide a reason for putting this order on hold:");
+    
+    // If the user cancels the prompt, don't proceed
+    if (reason === null) return;
+    
+    try {
+      const updates = { 
+        status: "on_hold", 
+        on_hold_description: reason || "No reason provided", 
+      };
+      
+      const result = await updateRepairOrder(id, updates);
+      if (result) {
+        toast.success("✅ Order placed on hold");
+        // Set active tab to on_hold to show the user their updated order
+        setActiveTab("on_hold");
+      } else {
+        toast.error("❌ Failed to put order on hold");
+      }
+    } catch (error) {
+      toast.error("❌ Error placing order on hold: " + error);
+    }
+  };
+
+  // Handler for resuming an order that was on hold
+  const handleResumeOrder = async (id: string) => {
+    try {
+      // Find the current order to check if it was assigned
+      const currentOrder = repairOrders.find(order => order.id === id);
+      
+      // If it had a technician assigned, resume as in_progress, otherwise as pending
+      const newStatus = currentOrder?.assignedTo ? "in_progress" : "pending";
+      
+      const updates = { 
+        status: newStatus,
+        // Optionally clear the hold reason when resuming
+        on_hold_description: null 
+      };
+      
+      const result = await updateRepairOrder(id, updates);
+      if (result) {
+        toast.success(`✅ Order resumed with status: ${newStatus.replace("_", " ")}`);
+        // Switch to the appropriate tab
+        setActiveTab(newStatus);
+      } else {
+        toast.error("❌ Failed to resume order");
+      }
+    } catch (error) {
+      toast.error("❌ Error resuming order: " + error);
+    }
+  };
+
+  // Helper function to get the hold reason regardless of how it's stored in the database
+  const getHoldReason = (order: RepairOrder): string => {
+    // Check for both possible field names and return the one that exists
+    return order.on_hold_description || order.onHoldDescription || "No reason provided";
+  };
+
   // Date formatting helper
   const formatDate = (dateString?: string) => {
     if (!dateString) return "N/A";
@@ -349,6 +417,7 @@ const Orders: React.FC = () => {
   // Group orders by status and (for completed) sort by most recent
   const pendingOrders = useMemo(() => filteredOrders.filter((o) => o.status === "pending"), [filteredOrders]);
   const inProgressOrders = useMemo(() => filteredOrders.filter((o) => o.status === "in_progress"), [filteredOrders]);
+  const onHoldOrders = useMemo(() => filteredOrders.filter((o) => o.status === "on_hold"), [filteredOrders]);
   const completedOrders = useMemo(() => filteredOrders.filter((o) => o.status === "completed").slice(0, 50), [filteredOrders]);
 
 
@@ -369,6 +438,13 @@ const Orders: React.FC = () => {
       color: "blue",
     },
     {
+      id: "on_hold",
+      label: "On Hold",
+      count: onHoldOrders.length,
+      icon: <AlertTriangle className="w-5 h-5" />,
+      color: "orange",
+    },
+    {
       id: "completed",
       label: "Completed",
       count: completedOrders.length,
@@ -383,6 +459,8 @@ const Orders: React.FC = () => {
         return pendingOrders;
       case "in_progress":
         return inProgressOrders;
+      case "on_hold":
+        return onHoldOrders;
       case "completed":
         return completedOrders;
       default:
@@ -609,6 +687,11 @@ const Orders: React.FC = () => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Difficulty
                   </th>
+                  {activeTab === "on_hold" && (
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Hold Reason
+                    </th>
+                  )}
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Submitted
                   </th>
@@ -633,6 +716,8 @@ const Orders: React.FC = () => {
                             ? "bg-yellow-100 text-yellow-800"
                             : order.status === "in_progress"
                             ? "bg-blue-100 text-blue-800"
+                            : order.status === "on_hold"
+                            ? "bg-orange-100 text-orange-800"
                             : "bg-green-100 text-green-800"
                         }`}
                       >
@@ -649,6 +734,41 @@ const Orders: React.FC = () => {
                         Level {order.difficulty_level || 1}
                       </span>
                     </td>
+                    {activeTab === "on_hold" && (
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        <div className="relative">
+                          {getHoldReason(order) !== "No reason provided" ? (
+                            <>
+                              <div className="flex items-center">
+                                <span className="truncate max-w-xs block">
+                                  {getHoldReason(order).length > 30 
+                                    ? `${getHoldReason(order).substring(0, 30)}...` 
+                                    : getHoldReason(order)}
+                                </span>
+                                {getHoldReason(order).length > 30 && (
+                                  <button 
+                                    onClick={() => setShowReasonId(showReasonId === order.id ? null : order.id)}
+                                    className="ml-2 p-1 text-blue-500 hover:text-blue-700"
+                                  >
+                                    <Info size={16} />
+                                  </button>
+                                )}
+                              </div>
+                              
+                              {/* Tooltip/Popup for full reason */}
+                              {showReasonId === order.id && (
+                                <div className="absolute z-10 bg-white border border-gray-200 rounded-md shadow-lg p-3 mt-1 w-72">
+                                  <div className="text-sm font-medium mb-1">Hold Reason:</div>
+                                  <div className="text-sm">{getHoldReason(order)}</div>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-gray-400 italic">No reason provided</span>
+                          )}
+                        </div>
+                      </td>
+                    )}
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                       {formatDate(order.createdAt)}
                     </td>
@@ -657,13 +777,47 @@ const Orders: React.FC = () => {
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleAssignOrder(order.id, order.difficulty_level)}
-                          className="px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors duration-200 flex items-center gap-1"
-                          aria-label="Assign order"
-                        >
-                          Assign
-                        </button>
+                        {/* Conditional buttons based on order status */}
+                        {order.status === "pending" && (
+                          <>
+                            <button
+                              onClick={() => handleAssignOrder(order.id, order.difficulty_level)}
+                              className="px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors duration-200 flex items-center gap-1"
+                              aria-label="Assign order"
+                            >
+                              Assign
+                            </button>
+                            <button
+                              onClick={() => handlePutOnHold(order.id)}
+                              className="px-3 py-1.5 bg-orange-500 text-white rounded text-sm hover:bg-orange-600 transition-colors duration-200 flex items-center gap-1"
+                              aria-label="Put order on hold"
+                            >
+                              <AlertTriangle className="w-4 h-4" /> Hold
+                            </button>
+                          </>
+                        )}
+                        
+                        {order.status === "in_progress" && (
+                          <button
+                            onClick={() => handlePutOnHold(order.id)}
+                            className="px-3 py-1.5 bg-orange-500 text-white rounded text-sm hover:bg-orange-600 transition-colors duration-200 flex items-center gap-1"
+                            aria-label="Put order on hold"
+                          >
+                            <AlertTriangle className="w-4 h-4" /> Hold
+                          </button>
+                        )}
+                        
+                        {order.status === "on_hold" && (
+                          <button
+                            onClick={() => handleResumeOrder(order.id)}
+                            className="px-3 py-1.5 bg-green-500 text-white rounded text-sm hover:bg-green-600 transition-colors duration-200 flex items-center gap-1"
+                            aria-label="Resume order"
+                          >
+                            <Play className="w-4 h-4" /> Resume
+                          </button>
+                        )}
+                        
+                        {/* Delete button always available */}
                         <button
                           onClick={() => handleDeleteOrder(order.id)}
                           className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors duration-200"
