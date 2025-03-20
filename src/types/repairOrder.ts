@@ -26,4 +26,6 @@ export interface RepairOrder {
   // Other possible fields related to technicians
   technicianId?: string;
   technician_id?: string;
+  dealership_id?: string; 
+
 }

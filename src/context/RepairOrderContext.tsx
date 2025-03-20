@@ -233,6 +233,8 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
         priority_type: data.priorityType,
         status: data.status || 'pending',
         difficulty_level: data.difficulty_level || 1, // Explicitly include difficulty_level
+        dealership_id: data.dealership_id,
+
         // Add other fields as needed
       };
       

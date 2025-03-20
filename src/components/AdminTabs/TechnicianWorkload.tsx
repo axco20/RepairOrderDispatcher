@@ -150,14 +150,13 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
     return () => clearInterval(interval);
   }, [technicianWorkloads]);
   
-
   useEffect(() => {
     technicianWorkloads.forEach((tech) => {
       if (tech.activeOrderCount > 0) {
         setFlashingTechs((prev) => ({ ...prev, [tech.id]: false })); // Stop flashing only for this tech
         setTimers((prev) => ({ ...prev, [tech.id]: 0 })); // Reset timer for this tech
       } else if (!(tech.id in timers)) {
-        setTimers((prev) => ({ ...prev, [tech.id]: 0 })); // Start timer if it doesn’t exist
+        setTimers((prev) => ({ ...prev, [tech.id]: 0 })); // Start timer if it doesn't exist
       }
     });
   }, [technicianWorkloads]);
@@ -165,8 +164,21 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
   const toggleSortOrder = () =>
     setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
 
+  // CSS for blinking effect - imported from ActiveRepairOrdersTable
+  const blinkingStyle = `
+    @keyframes blink {
+      0% { background-color: rgba(239, 68, 68, 0.2); }
+      50% { background-color: rgba(239, 68, 68, 0.5); }
+      100% { background-color: rgba(239, 68, 68, 0.2); }
+    }
+    .urgent-row {
+      animation: blink 1.5s infinite;
+    }
+  `;
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6 relative">
+      <style>{blinkingStyle}</style>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold flex items-center">
           <Users className="h-5 w-5 mr-2 text-indigo-600" />
@@ -191,13 +203,11 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
             <div
               key={tech.id}
               className={`flex items-center justify-between bg-gray-50 rounded-md p-2 relative ${
-                flashingTechs[tech.id] ? "animate-pulse bg-red-200" : ""
+                flashingTechs[tech.id] ? "urgent-row" : ""
               }`}
             >
               {/* Left Side: Avatar & Name */}
               <div className="flex items-center w-1/3">
-                {" "}
-                {/* Fixed width for left side */}
                 <div className="rounded-full w-8 h-8 bg-indigo-100 text-indigo-700 flex items-center justify-center mr-2 text-xs font-bold uppercase">
                   {tech.name.charAt(0)}
                 </div>
@@ -231,8 +241,20 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
                       }
                       className="ml-1 text-gray-500 hover:text-gray-700"
                     >
-                      <Info className="h-3 w-3" /> {/* Made icon smaller */}
+                      <Info className="h-3 w-3" />
                     </button>
+                  </div>
+                )}
+
+                {/* Tooltip for on hold orders */}
+                {tooltipTech === tech.id && tech.onHoldOrderDescriptions && tech.onHoldOrderDescriptions.length > 0 && (
+                  <div className="absolute right-0 z-10 mt-2 w-56 -top-2 transform translate-y-full bg-white rounded-md shadow-lg p-2 text-left">
+                    <p className="font-bold text-xs mb-1">On Hold Orders:</p>
+                    <ul className="text-xs space-y-1">
+                      {tech.onHoldOrderDescriptions.map((description, idx) => (
+                        <li key={idx} className="truncate">• {description}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>

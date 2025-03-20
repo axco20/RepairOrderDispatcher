@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { RealTimeOrdersContext } from "@/context/RealTimeOrdersProvider";
 
 // This is the new hook that returns the context including activeTechnicians
-export const useRealTimeOrders = () => {
+export const useRealTimeOrders = (refreshOrders: () => Promise<void>) => {
   return useContext(RealTimeOrdersContext);
 };
 

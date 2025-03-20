@@ -3,12 +3,13 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-// Define User type
+// Updated User type to include dealership_id
 interface User {
   id: string;
   email: string;
   name: string;
   role: string;
+  dealership_id?: string;  // Added dealership_id
 }
 
 interface AuthContextType {
@@ -98,6 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: userData.email,
             name: userData.name,
             role: userData.role,
+            dealership_id: userData.dealership_id, // Make sure to include dealership_id
           });
           setIsAdmin(userData.role === "admin");
           
@@ -169,6 +171,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: userData.email,
       name: userData.name,
       role: userData.role,
+      dealership_id: userData.dealership_id, // Make sure to include dealership_id
     });
     
     setIsAdmin(userData.role === "admin");
