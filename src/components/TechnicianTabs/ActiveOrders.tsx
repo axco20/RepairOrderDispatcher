@@ -32,7 +32,7 @@ export default function ActiveOrders() {
       try {
         await refreshOrders();
       } catch (err) {
-        console.error("Error refreshing orders:", err);
+        // Error refreshing orders
       } finally {
         if (isMounted) {
           setRefreshing(false);
@@ -87,8 +87,7 @@ export default function ActiveOrders() {
           toast.error("Failed to complete repair order");
         }
       } catch (err) {
-        console.error("Error completing order:", err);
-        toast.error("An error occurred while completing the order");
+        toast.error("Error completing order");
       } finally {
         setConfirmingOrderId(null);
         setIsUpdatingOrder(null);
@@ -135,8 +134,7 @@ export default function ActiveOrders() {
       setHoldOrderId(null);
       setHoldReason("");
     } catch (error) {
-      console.error("Error updating order status:", error);
-      toast.error("An error occurred while updating the order status.");
+      toast.error("Error updating order status");
     } finally {
       setIsUpdatingOrder(null);
     }

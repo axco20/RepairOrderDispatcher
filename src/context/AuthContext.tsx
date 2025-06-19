@@ -18,6 +18,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAdmin: boolean;
+  isLoading: boolean; // Add loading state
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -26,6 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => false,
   logout: () => {},
   isAdmin: false,
+  isLoading: true,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -33,6 +35,7 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Function to update user's last activity timestamp
   const updateLastActivity = async () => {
@@ -44,71 +47,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .eq("auth_id", currentUser.id);
         
         if (error) {
-          console.error("Error updating last activity:", error);
+          // Error updating last activity
         }
       } catch (err) {
-        console.error("Failed to update activity status:", err);
+        // Failed to update activity status
       }
     }
   };
 
-  // Set up tracking for user activity
+  // Set up tracking for user activity - REDUCED FREQUENCY FOR PERFORMANCE
   useEffect(() => {
     if (currentUser) {
       // Update immediately on login
       updateLastActivity();
       
-      // Set interval for regular updates (every 3 minutes)
-      const interval = setInterval(updateLastActivity, 3 * 60 * 1000);
+      // Set interval for regular updates (every 5 minutes instead of 3)
+      const interval = setInterval(updateLastActivity, 5 * 60 * 1000);
       
-      // Also update on user interaction
-      const handleUserActivity = () => {
-        updateLastActivity();
-      };
-      
-      // Add event listeners for user activity
-      window.addEventListener("click", handleUserActivity);
-      window.addEventListener("keypress", handleUserActivity);
-      window.addEventListener("scroll", handleUserActivity);
-      
-      // Clean up
+      // Clean up interval on unmount
       return () => {
         clearInterval(interval);
-        window.removeEventListener("click", handleUserActivity);
-        window.removeEventListener("keypress", handleUserActivity);
-        window.removeEventListener("scroll", handleUserActivity);
       };
     }
   }, [currentUser]);
 
-  // ✅ Check for an active session on page load
+  // ✅ Check for an active session on page load - DISABLED FOR SECURITY
   useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user && user.email) {
-        // ✅ Fetch user details from "users" table
-        const { data: userData, error } = await supabase
-          .from("users")
-          .select("*")
-          .eq("auth_id", user.id)
-          .single();
-
-        if (!error && userData) {
-          setCurrentUser({
-            id: userData.auth_id,
-            email: userData.email,
-            name: userData.name,
-            role: userData.role,
-            dealership_id: userData.dealership_id, // Make sure to include dealership_id
-          });
-          setIsAdmin(userData.role === "admin");
-          
-          // Update activity timestamp on login
-          updateLastActivity();
-        }
-      }
-    };
-    fetchUser();
+    // Always start with no user logged in for security
+    setCurrentUser(null);
+    setIsAdmin(false);
+    setIsLoading(false);
+    
+    // Clear any existing session
+    supabase.auth.signOut();
   }, []);
 
   // ✅ Signup function
@@ -116,12 +87,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data, error } = await supabase.auth.signUp({ email, password });
 
     if (error) {
-      console.error("Signup error:", error.message);
       return false;
     }
 
     if (!data.user?.id) {
-      console.error("Error: No user ID returned from Supabase");
       return false;
     }
 
@@ -131,7 +100,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .insert([{ auth_id: data.user.id, email, name, role }]);
 
     if (insertError) {
-      console.error("Database insert error:", insertError.message);
       return false;
     }
 
@@ -143,12 +111,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      console.error("Login error:", error.message);
       return false;
     }
 
     if (!data.user?.id) {
-      console.error("Error: No user ID returned from Supabase");
       return false;
     }
 
@@ -160,11 +126,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .single();
 
     if (fetchError || !userData) {
-      console.error("User fetch error:", fetchError?.message);
       return false;
     }
-
-    console.log("Fetched role:", userData.role);
 
     setCurrentUser({
       id: userData.auth_id,
@@ -190,7 +153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, signup, login, logout, isAdmin }}>
+    <AuthContext.Provider value={{ currentUser, signup, login, logout, isAdmin, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

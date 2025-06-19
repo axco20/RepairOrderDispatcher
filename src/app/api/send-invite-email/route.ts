@@ -1,20 +1,21 @@
-import { NextResponse } from "next/server";
-import { Resend } from "resend";
+import { NextRequest, NextResponse } from 'next/server';
+import { Resend } from 'resend';
 import { EmailTemplate } from "@/components/EmailTemplate";
 import React from "react";
 
 // Initialize Resend with API key
-const resend = new Resend("re_46PjJjzW_5TzfHSkhdhwMm5WFXrzUvaca");
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-export async function POST(req: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json();
-    console.log("🔹 API Received Data:", body);
+    const body = await request.json();
     const { email, inviteUrl } = body;
 
     if (!email || !inviteUrl) {
-      console.error("🚨 Missing fields in API request:", { email, inviteUrl });
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
     }
 
     // Send email with invitation link

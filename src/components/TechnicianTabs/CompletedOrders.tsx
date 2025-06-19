@@ -1,40 +1,36 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { Clock, CheckCircle } from "lucide-react";
 
+interface RepairOrder {
+  id: string;
+  status: string;
+  completedAt?: string;
+  assignedAt?: string;
+  description: string;
+  orderDescription?: string;
+}
+
+interface ActualHoursMap {
+  [key: string]: number;
+}
+
 export default function CompletedOrders() {
   const { currentUser } = useAuth();
-  const { technicianOrders, refreshOrders } = useRepairOrders();
-  const [timeFilter, setTimeFilter] = useState("all");
-  const [filteredOrders, setFilteredOrders] = useState([]);
+  const { technicianOrders } = useRepairOrders();
+  const [timeFilter, setTimeFilter] = useState<"all" | "daily" | "weekly" | "monthly" | "yearly">("all");
+  const [filteredOrders, setFilteredOrders] = useState<RepairOrder[]>([]);
   
   // For tracking actual hours spent on each repair
-  const [actualHours, setActualHours] = useState({});
-  const [totalActualHours, setTotalActualHours] = useState(0);
+  const [actualHours, setActualHours] = useState<ActualHoursMap>({});
+  const [totalActualHours, setTotalActualHours] = useState<number>(0);
   
-  useEffect(() => {
-    if (!currentUser) return;
-    
-    console.log("📋 Fetching all technician orders...");
-    const allOrders = technicianOrders(currentUser.id);
-    console.log("✅ Technician orders:", allOrders);
-    
-    // Initialize actual hours if not already set
-    const newActualHours = {...actualHours};
-    allOrders.forEach(order => {
-      if (!newActualHours[order.id]) {
-        newActualHours[order.id] = 5; // Default to 5 hours
-      }
-    });
-    setActualHours(newActualHours);
-    
-    filterOrdersByTime(allOrders, newActualHours);
-  }, [currentUser, timeFilter, technicianOrders]);
-  
-  const filterOrdersByTime = (allOrders, hoursObj) => {
+  const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
+
+  const filterOrdersByTime = useCallback((allOrders: RepairOrder[], hoursObj: ActualHoursMap) => {
     if (!allOrders) return [];
     
     const completedOrders = allOrders.filter((order) => order.status === "completed");
@@ -46,7 +42,7 @@ export default function CompletedOrders() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfYear = new Date(now.getFullYear(), 0, 1);
     
-    let filtered;
+    let filtered: RepairOrder[];
     switch (timeFilter) {
       case "daily":
         filtered = completedOrders.filter(order => 
@@ -81,13 +77,39 @@ export default function CompletedOrders() {
     let totalActual = 0;
     filtered.forEach(order => {
       const actualHrs = hoursObj[order.id] || 0;
-      totalActual += parseFloat(actualHrs);
+      totalActual += parseFloat(actualHrs.toString());
     });
     
     setTotalActualHours(totalActual);
-  };
+  }, [timeFilter]);
+  
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const allOrders = technicianOrders(currentUser.id);
+    
+    // Initialize actual hours if not already set
+    const newActualHours = {...actualHours};
+    allOrders.forEach((order: RepairOrder) => {
+      if (!newActualHours[order.id]) {
+        newActualHours[order.id] = 5; // Default to 5 hours
+      }
+    });
+    setActualHours(newActualHours);
+    
+    filterOrdersByTime(allOrders, newActualHours);
+  }, [currentUser, timeFilter, technicianOrders, actualHours, filterOrdersByTime]);
+  
+  // Initialize input values when actualHours changes
+  useEffect(() => {
+    const newInputValues: { [key: string]: string } = {};
+    Object.entries(actualHours).forEach(([id, hours]) => {
+      newInputValues[id] = hours.toString();
+    });
+    setInputValues(newInputValues);
+  }, [actualHours]);
 
-  const handleActualHoursChange = (orderId, hours) => {
+  const handleActualHoursChange = (orderId: string, hours: number) => {
     const newActualHours = {
       ...actualHours,
       [orderId]: hours
@@ -97,13 +119,13 @@ export default function CompletedOrders() {
     // Recalculate total
     let total = 0;
     filteredOrders.forEach(order => {
-      total += parseFloat(order.id === orderId ? hours : (newActualHours[order.id] || 0));
+      total += parseFloat(order.id === orderId ? hours.toString() : (newActualHours[order.id] || 0).toString());
     });
     
     setTotalActualHours(total);
   };
 
-  const calculateTimeToComplete = (assignedAt, completedAt) => {
+  const calculateTimeToComplete = (assignedAt: string | undefined, completedAt: string | undefined): string => {
     if (!assignedAt || !completedAt) return "N/A";
 
     const startDate = new Date(assignedAt);
@@ -199,23 +221,15 @@ export default function CompletedOrders() {
                 {filteredOrders.map((order) => (
                   <tr key={order.id}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {order.description}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div
-                          className={`text-sm ${
-                            order.orderDescription
-                              ? "text-gray-900"
-                              : "text-gray-400 italic"
-                          }`}
-                        >
-                          {order.orderDescription
-                            ? order.orderDescription
-                            : "No Description"}
-                        </div>
-                      </td>
+                      <div className="text-sm font-medium text-gray-900">
+                        {order.id}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">
+                        {order.description || order.orderDescription}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">
                         {order.assignedAt ? new Date(order.assignedAt).toLocaleString() : "N/A"}
@@ -228,12 +242,20 @@ export default function CompletedOrders() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <input
-                        type="number"
-                        step="0.5"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
+                        pattern="[0-9]*\.?[0-9]*"
                         className="border rounded px-2 py-1 w-20 text-sm"
-                        value={actualHours[order.id] || ""}
-                        onChange={(e) => handleActualHoursChange(order.id, e.target.value)}
+                        value={inputValues[order.id] || ""}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          setInputValues(prev => ({ ...prev, [order.id]: newValue }));
+                          
+                          const numericValue = newValue === "" ? 0 : parseFloat(newValue);
+                          if (!isNaN(numericValue)) {
+                            handleActualHoursChange(order.id, numericValue);
+                          }
+                        }}
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -247,7 +269,7 @@ export default function CompletedOrders() {
               </tbody>
               <tfoot className="bg-gray-50 border-t-2 border-gray-200">
                 <tr>
-                  <td colSpan="4" className="px-6 py-4 text-right font-medium">
+                  <td colSpan={4} className="px-6 py-4 text-right font-medium">
                     Total Hours:
                   </td>
                   <td className="px-6 py-4">

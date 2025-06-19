@@ -11,6 +11,7 @@ import OnHoldOrders from "@/components/TechnicianTabs/OnHoldOrders";
 import Help from "@/components/TechnicianTabs/Help";
 import { toast } from "react-toastify";
 import { useRealTimeUpdates } from "@/lib/useRealTimeOrders";
+import { useAdminRealTime } from "@/lib/useAdminRealTime";
 import { BarChart2 } from "lucide-react"; 
 import { supabase } from "@/lib/supabaseClient";
 
@@ -19,7 +20,19 @@ import { supabase } from "@/lib/supabaseClient";
 export default function TechnicianDashboard() {
   const { currentUser, logout } = useAuth();
   const router = useRouter();
-  useRealTimeUpdates();
+  
+  // Get real-time connection status
+  const { isConnected, error } = useRealTimeUpdates();
+  
+  // Listen for repair order updates to refresh technician data
+  useAdminRealTime({
+    eventType: 'repairOrdersUpdated',
+    onUpdate: () => {
+      // Refresh orders when any repair order changes
+      refreshOrders();
+    },
+    showNotification: false // Don't show notifications for technicians
+  });
   
   const { 
     technicianOrders, 

@@ -114,45 +114,46 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
   const refreshOrders = async () => {
     try {
       setLoading(true);
-  
-      // Step 1: Get the logged-in user's dealership_id
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData?.user?.id) {
-        console.error("Error fetching user:", userError);
+      setError(null);
+
+      // Fetch current user to get dealership_id
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        setError("User not authenticated");
         return;
       }
-  
+
+      // Get user details including dealership_id
       const { data: userDetails, error: userDetailsError } = await supabase
         .from("users")
         .select("dealership_id")
-        .eq("auth_id", userData.user.id)
+        .eq("auth_id", user.id)
         .single();
-  
+
       if (userDetailsError || !userDetails?.dealership_id) {
-        console.error("Error fetching dealership ID:", userDetailsError);
+        setError("Unable to fetch user details");
         return;
       }
-  
+
       const dealershipId = userDetails.dealership_id;
-  
-      // Step 2: Fetch only orders that belong to the same dealership
+
+      // Fetch repair orders for the user's dealership
       const { data, error } = await supabase
         .from("repair_orders")
         .select("*")
-        .eq("dealership_id", dealershipId) // ✅ Filters by dealership
-        .order("created_at", { ascending: false });
-  
+        .eq("dealership_id", dealershipId)
+        .order("created_at", { ascending: true });
+
       if (error) {
-        throw new Error(error.message);
+        setError("Failed to load repair orders");
+        return;
       }
-  
-      // Convert to camelCase and update state
-      const camelCaseData = data ? data.map(toCamelCase) : [];
-      setRepairOrders(camelCaseData);
-      setError(null);
+
+      // Convert to camelCase
+      const camelCaseOrders = data.map(toCamelCase);
+      setRepairOrders(camelCaseOrders);
     } catch (err) {
-      console.error("Error loading repair orders:", err);
-      setError("Failed to load repair orders");
+      setError("Error loading repair orders");
     } finally {
       setLoading(false);
     }
@@ -162,31 +163,21 @@ export const RepairOrderProvider: React.FC<{ children: ReactNode }> = ({ childre
   // Fetch assignments
   const fetchAssignments = async () => {
     try {
-      console.log("Fetching repair assignments...");
-      
       const { data, error } = await supabase
-        .from('repair_assignments')
-        .select('*');
-      
+        .from("repair_assignments")
+        .select("*")
+        .order("assigned_at", { ascending: false });
+
       if (error) {
-        console.error('Error fetching repair assignments:', {
-          message: error.message,
-          details: error.details,
-          code: error.code,
-          hint: error.hint
-        });
-        return [];
+        setError('Failed to fetch repair assignments');
+        return;
       }
-      
-      console.log(`Successfully fetched ${data?.length || 0} assignments`);
-      
-      // Convert snake_case from DB to camelCase for our interface
-      const camelCaseData = data ? data.map(toCamelCase) : [];
-      setAssignments(camelCaseData);
-      return camelCaseData;
+
+      // Convert to camelCase
+      const camelCaseAssignments = data.map(toCamelCase);
+      setAssignments(camelCaseAssignments);
     } catch (err) {
-      console.error('Exception in fetchAssignments:', err);
-      return [];
+      setError('Exception in fetchAssignments');
     }
   };
 

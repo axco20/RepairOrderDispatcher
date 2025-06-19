@@ -24,11 +24,31 @@ export default function Home({
   const { technicianOrders, pendingOrders } = useRepairOrders();
   const [outsideSkillLevelCount, setOutsideSkillLevelCount] = useState<number>(0);
   const [techSkillLevel, setTechSkillLevel] = useState<number>(1);
+  const [completedToday, setCompletedToday] = useState<number>(0);
 
   // Check if technician has any active orders that are not on hold
   const hasActiveNonHoldOrders = currentUser && technicianOrders(currentUser.id).some(
     (order) => order.status === "in_progress" && order.assignedTo === currentUser.id
   );
+
+  // Calculate completed orders for today
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const allOrders = technicianOrders(currentUser.id);
+    const completedOrders = allOrders.filter((order) => order.status === "completed");
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const completedTodayCount = completedOrders.filter(order => {
+      const completedDate = order.completedAt ? new Date(order.completedAt) : null;
+      const isToday = completedDate && completedDate >= today;
+      return isToday;
+    }).length;
+    
+    setCompletedToday(completedTodayCount);
+  }, [currentUser, technicianOrders]);
 
   // Get technician's skill level and calculate orders outside skill level
   useEffect(() => {
@@ -43,7 +63,6 @@ export default function Home({
           .single();
 
         if (error) {
-          console.error("Error fetching technician skill level:", error);
           return;
         }
 
@@ -57,7 +76,7 @@ export default function Home({
 
         setOutsideSkillLevelCount(ordersOutsideSkill);
       } catch (err) {
-        console.error("Error calculating orders outside skill level:", err);
+        // Error calculating orders outside skill level
       }
     };
 
@@ -178,7 +197,7 @@ export default function Home({
           <div className="flex items-center justify-center">
             <div className="text-center">
               <p className="text-gray-500 text-sm">Completed Today</p>
-              <p className="text-4xl font-bold text-emerald-600">5</p>
+              <p className="text-4xl font-bold text-emerald-600">{completedToday}</p>
             </div>
           </div>
         </div>

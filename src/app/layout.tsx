@@ -3,8 +3,6 @@ import { RepairOrderProvider } from "@/context/RepairOrderContext";
 import { ToastContainer } from "react-toastify"; 
 import "react-toastify/dist/ReactToastify.css"; 
 import "./globals.css";
-import { RealTimeOrdersProvider } from "@/context/RealTimeOrdersProvider"; // Import your provider
-
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

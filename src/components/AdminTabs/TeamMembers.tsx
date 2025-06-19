@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Search, Edit, BarChart2, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "react-toastify";
+import { useAdminRealTime } from "@/lib/useAdminRealTime";
 
 interface TeamMember {
   id: string;
@@ -25,141 +26,68 @@ const TeamMembers: React.FC = () => {
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
   const [skillLevel, setSkillLevel] = useState<number>(1);
   const [isRemoving, setIsRemoving] = useState(false);
-  const [dealershipId, setDealershipId] = useState<string | null>(null);
+  const [] = useState<string | null>(null);
+  const [, setLoading] = useState(false);
+  const [, setError] = useState<string | null>(null);
+  const [, setInviting] = useState(false);
 
   useEffect(() => {
     fetchMembers();
-    
-    // Set up realtime subscription when component mounts
-    const setupRealtimeSubscription = async () => {
-      try {
-        // Get the current user's dealership_id first
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError || !userData?.user?.id) {
-          console.error("Error fetching current user:", userError);
-          return;
-        }
-
-        const { data: currentUserData, error: currentUserError } = await supabase
-          .from("users")
-          .select("dealership_id")
-          .eq("auth_id", userData.user.id)
-          .single();
-
-        if (currentUserError || !currentUserData?.dealership_id) {
-          console.error("Error fetching user dealership ID:", currentUserError);
-          return;
-        }
-
-        const dealerId = currentUserData.dealership_id;
-        setDealershipId(dealerId);
-        
-        // Subscribe to changes in the users table filtered by dealership_id
-        const subscription = supabase
-          .channel('users-changes')
-          .on('postgres_changes', {
-            event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-            schema: 'public',
-            table: 'users',
-            filter: `dealership_id=eq.${dealerId}`, // Filter for only the current dealership
-          }, (payload) => {
-            console.log('Change received!', payload);
-            
-            // Handle different types of changes
-            switch (payload.eventType) {
-              case 'INSERT':
-                // Add new member to the list if not already there
-                setMembers(currentMembers => {
-                  const newMember = payload.new as TeamMember;
-                  const exists = currentMembers.some(member => member.id === newMember.id);
-                  if (!exists) {
-                    return [...currentMembers, newMember];
-                  }
-                  return currentMembers;
-                });
-                toast.info("✅ New team member added");
-                break;
-                
-              case 'UPDATE':
-                // Update the member in the list
-                setMembers(currentMembers => 
-                  currentMembers.map(member => 
-                    member.id === payload.new.id ? { ...member, ...payload.new } : member
-                  )
-                );
-                break;
-                
-              case 'DELETE':
-                // Remove the member from the list
-                setMembers(currentMembers => 
-                  currentMembers.filter(member => member.id !== payload.old.id)
-                );
-                break;
-                
-              default:
-                break;
-            }
-          })
-          .subscribe();
-          
-        // Clean up subscription when component unmounts
-        return () => {
-          supabase.removeChannel(subscription);
-        };
-      } catch (err) {
-        console.error("Error setting up realtime subscription:", err);
-      }
-    };
-    
-    setupRealtimeSubscription();
   }, []);
+
+  // Use the new real-time hook for team members updates
+  useAdminRealTime({
+    eventType: 'teamMembersUpdated',
+    onUpdate: () => {
+      // Refresh team members data
+      fetchMembers();
+    },
+    notificationMessage: 'Team members updated in real-time'
+  });
 
   // Modify the fetchMembers function
   const fetchMembers = async () => {
     try {
-      // 1. Get the current user
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData?.user?.id) {
-        console.error("Error fetching current user:", userError);
+      setLoading(true);
+      
+      // Get current user to determine their dealership
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        setError("User not authenticated");
         return;
       }
 
-      // 2. Get the current user's dealership_id
-      const { data: currentUserData, error: currentUserError } = await supabase
+      // Get user's dealership ID
+      const { data: currentUser, error: currentUserError } = await supabase
         .from("users")
         .select("dealership_id")
-        .eq("auth_id", userData.user.id)
+        .eq("auth_id", user.id)
         .single();
 
-      if (currentUserError || !currentUserData?.dealership_id) {
-        console.error("Error fetching user dealership ID:", currentUserError);
+      if (currentUserError || !currentUser?.dealership_id) {
+        setError("Unable to fetch user details");
         return;
       }
 
-      const dealershipId = currentUserData.dealership_id;
-      console.log("Current user's dealership ID:", dealershipId);
-      
-      // Store dealership ID in state for later use
-      setDealershipId(dealershipId);
+      const dealershipId = currentUser.dealership_id;
 
-      // 3. Get all users with the same dealership_id
+      // Fetch team members from the same dealership
       const { data, error } = await supabase
         .from("users")
         .select("*")
         .eq("dealership_id", dealershipId)
-        .order("created_at", { ascending: false });
+        .order("name", { ascending: true });
 
       if (error) {
-        console.error("Error fetching team members:", error);
+        setError("Failed to fetch team members");
         return;
       }
 
-      if (data) {
-        console.log("Fetched members:", data);
-        setMembers(data);
-      }
+      setMembers(data || []);
     } catch (err) {
-      console.error("Error in fetchMembers:", err);
+      setError("Error fetching team members");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -190,35 +118,36 @@ const TeamMembers: React.FC = () => {
     }
     
     try {
-      // ✅ Fetch the current user's dealership ID
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      console.log("User data from auth:", userData);
-      console.log("User error:", userError);
+      setInviting(true);
       
-      if (userError || !userData?.user?.id) {
-        console.log("Failed authentication check, user ID:", userData?.user?.id);
-        throw new Error("❌ Failed to retrieve authenticated user.");
+      // Create user in Supabase Auth
+      const { data: userData, error: userError } = await supabase.auth.admin.createUser({
+        email: email,
+        password: 'tempPassword123!', // They'll reset this
+        email_confirm: true
+      });
+
+      if (userError || !userData.user) {
+        setError("Failed to create user account");
+        return;
       }
-      
-      // ✅ Use the correct user ID for lookup
-      console.log("Looking up user with auth_id:", userData.user.id);
+
+      // Get current user's dealership ID for the new user
       const { data: adminData, error: adminError } = await supabase
         .from("users")
         .select("dealership_id")
         .eq("auth_id", userData.user.id)
         .single();
-      
-      console.log("Admin data:", adminData);
-      console.log("Admin error:", adminError);
-      console.log("Dealership ID:", adminData?.dealership_id);
-      
+
       if (adminError || !adminData?.dealership_id) {
-        console.log("Failed admin lookup check, dealership ID:", adminData?.dealership_id);
-        throw new Error("❌ Failed to retrieve dealership ID.");
+        setError("Failed to get dealership information");
+        return;
       }
+
+      const dealershipId = adminData.dealership_id;
       
       // ✅ Generate invite link with dealership ID and role
-      const inviteUrl = `${window.location.origin}/signuppage?email=${encodeURIComponent(email)}&dealership_id=${adminData.dealership_id}&role=${role}`;
+      const inviteUrl = `${window.location.origin}/signuppage?email=${encodeURIComponent(email)}&dealership_id=${dealershipId}&role=${role}`;
       console.log("Generated invite URL:", inviteUrl);
       
       // ✅ Send email with the invite link
@@ -238,6 +167,8 @@ const TeamMembers: React.FC = () => {
     } catch (error) {
       console.error("Error sending invitation:", error);
       toast.error("❌ Error sending invitation.");
+    } finally {
+      setInviting(false);
     }
   };
 
@@ -598,7 +529,7 @@ const TeamMembers: React.FC = () => {
 
       {/* Modal for Editing Skill Level */}
       {isSkillModalOpen && selectedTechnician && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="fixed inset-0 flex items-center justify-center bg-blur bg-opacity-50 z-50">
           <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
             <h2 className="text-lg font-bold text-white mb-4 text-center">
               Edit Technician Skill Level
@@ -643,7 +574,7 @@ const TeamMembers: React.FC = () => {
 
       {/* Modal for Remove Member Confirmation */}
       {isRemoveModalOpen && memberToRemove && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="fixed inset-0 flex items-center justify-center bg-blur bg-opacity-50 z-50">
           <div className="bg-[#1F2937] p-6 rounded-lg shadow-lg border border-gray-700 max-w-sm w-full">
             <h2 className="text-lg font-bold text-white mb-4 text-center">
               Remove Team Member

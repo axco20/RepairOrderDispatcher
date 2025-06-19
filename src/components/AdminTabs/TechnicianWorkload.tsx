@@ -116,7 +116,7 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
         onHoldOrderDescriptions: onHoldOrders,
       })
     );
-  }, [technicians, repairOrders, sortOrder]);
+  }, [technicians, repairOrders]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -148,7 +148,7 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
     }, 60000); // Runs every minute
 
     return () => clearInterval(interval);
-  }, [technicianWorkloads]);
+  }, [technicianWorkloads, timers]);
 
   useEffect(() => {
     technicianWorkloads.forEach((tech) => {
@@ -169,7 +169,7 @@ const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({
     if (!text) return '';
     
     // Split by sentence-ending punctuation followed by a space
-    return text.split(/([.!?]\s+)/).map((part, index) => {
+    return text.split(/([.!?]\s+)/).map((part) => {
       // If this is a punctuation part, return it as is
       if (/^[.!?]\s+$/.test(part)) return part;
       

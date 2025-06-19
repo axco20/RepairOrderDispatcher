@@ -15,11 +15,14 @@ import {
   Play,
   Info,
   Zap,
+  Edit,
+  User,
 } from "lucide-react";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { toast } from "react-toastify";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/context/AuthContext";
+import { useAdminRealTime } from "@/lib/useAdminRealTime";
 import Select from "react-select";
 
 // Define types for technicians and react-select options
@@ -209,19 +212,15 @@ const Orders: React.FC = () => {
     }
   }, [repairOrders, loading, refreshOrders]);
 
-  // Handle real-time repair order updates - listen for the event
-  useEffect(() => {
-    const handleOrderUpdates = () => {
-      console.log("🔄 Orders component: Detected order updates event");
-      // We don't need to call refreshOrders() here because the context already did
-    };
-    
-    window.addEventListener('ordersUpdated', handleOrderUpdates);
-    
-    return () => {
-      window.removeEventListener('ordersUpdated', handleOrderUpdates);
-    };
-  }, []);
+  // Use the new real-time hook for orders updates
+  useAdminRealTime({
+    eventType: 'repairOrdersUpdated',
+    onUpdate: (event) => {
+      // Refresh orders data
+      refreshOrders();
+    },
+    notificationMessage: 'Orders updated in real-time'
+  });
 
   // Compute technician options using the technicians state
   const technicianOptions = useMemo(() => {

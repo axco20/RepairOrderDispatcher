@@ -13,6 +13,7 @@ export default function ActiveOrders() {
     useRepairOrders();
   const [refreshing, setRefreshing] = useState(false);
   const [showReasonId, setShowReasonId] = useState<string | null>(null);
+  const [isResuming, setIsResuming] = useState<string | null>(null);
 
   // Helper function to get the hold reason
   const getHoldReason = (order: any): string => {
@@ -47,23 +48,21 @@ export default function ActiveOrders() {
       order.status === "on_hold" && order.assignedTo === currentUser.id
   );
 
-  const handleReassign = async (orderId: string) => {
+  const handleResumeOrder = async (orderId: string) => {
     try {
-      // Update order status to 'in_progress' in Supabase
-      const { error } = await supabase
-        .from("repair_orders")
-        .update({ status: "in_progress" })
-        .eq("id", orderId);
-
-      if (error) {
-        throw error;
+      setIsResuming(orderId);
+      const success = await updateRepairOrder(orderId, { status: "in_progress" });
+      
+      if (success) {
+        toast.success("Order resumed successfully!");
+        await refreshOrdersFromContext();
+      } else {
+        toast.error("Failed to resume order");
       }
-
-      toast.success("Repair order reclaimed!");
-      await refreshOrders();
     } catch (error) {
-      console.error("Error updating order status:", error);
-      toast.error("An error occurred while updating the order status.");
+      toast.error("Error resuming order");
+    } finally {
+      setIsResuming(null);
     }
   };
 
@@ -202,7 +201,7 @@ export default function ActiveOrders() {
                         <div className="flex items-center justify-center gap-x-6">
                           {/* Reclaim Button */}
                           <button
-                            onClick={() => handleReassign(order.id)}
+                            onClick={() => handleResumeOrder(order.id)}
                             className="flex items-center px-4 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all duration-300"
                           >
                             <CheckCircle size={18} className="mr-2" />
