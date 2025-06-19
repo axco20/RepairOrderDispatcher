@@ -1,18 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // your other Next.js config options…
-
-  // 1) skip TypeScript errors at build time
+  /* config options here */
   typescript: {
+    // !! WARN !!
+    // Dangerously allow production builds to successfully complete even if
+    // your project has type errors.
+    // !! WARN !!
     ignoreBuildErrors: true,
   },
-
-  // 2) skip ESLint errors at build time
   eslint: {
+    // Warning: This allows production builds to successfully complete even if
+    // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
 };
 
 export default nextConfig;
-

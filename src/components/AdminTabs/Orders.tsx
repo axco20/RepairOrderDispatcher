@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
@@ -15,8 +16,6 @@ import {
   Play,
   Info,
   Zap,
-  Edit,
-  User,
 } from "lucide-react";
 import { useRepairOrders } from "@/context/RepairOrderContext";
 import { toast } from "react-toastify";

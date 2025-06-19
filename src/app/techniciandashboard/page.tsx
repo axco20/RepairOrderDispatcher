@@ -12,7 +12,6 @@ import Help from "@/components/TechnicianTabs/Help";
 import { toast } from "react-toastify";
 import { useRealTimeUpdates } from "@/lib/useRealTimeOrders";
 import { useAdminRealTime } from "@/lib/useAdminRealTime";
-import { BarChart2 } from "lucide-react"; 
 import { supabase } from "@/lib/supabaseClient";
 
 // Removed the TechnicianWorkload import
@@ -22,7 +21,7 @@ export default function TechnicianDashboard() {
   const router = useRouter();
   
   // Get real-time connection status
-  const { isConnected, error } = useRealTimeUpdates();
+  useRealTimeUpdates();
   
   // Listen for repair order updates to refresh technician data
   useAdminRealTime({
@@ -146,15 +145,6 @@ export default function TechnicianDashboard() {
     }
   };
 
-  // Helper function to get skill level label
-  const getSkillLevelLabel = (level: number) => {
-    switch (level) {
-      case 1: return "Basic";
-      case 2: return "Intermediate";
-      case 3: return "Advanced";
-      default: return "Basic";
-    }
-  };
 
   // Define a logout handler that also redirects to the landing page
   const handleLogout = async () => {

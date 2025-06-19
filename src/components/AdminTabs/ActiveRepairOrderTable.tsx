@@ -1,7 +1,7 @@
 "use client"; // Needed for hooks in Next.js
 
 import React, { useState, useEffect } from "react";
-import { Clock, AlertTriangle, CheckCircle, ArrowRightCircle, BarChart2, Pause, Zap, Tag } from "lucide-react";
+import { Clock, AlertTriangle, Zap, Tag } from "lucide-react";
 
 // Define interfaces for type safety
 interface RepairOrder {
@@ -132,23 +132,6 @@ const PendingRepairOrdersTable: React.FC<ActiveRepairOrdersTableProps> = ({ repa
     }
   `;
   
-  // Difficulty level badge
-  const DifficultyBadge: React.FC<{ level?: number }> = ({ level }) => {
-    const difficultyLevel = level || 1;
-    let bgColor = "bg-green-100 text-green-800";
-    
-    if (difficultyLevel === 2) {
-      bgColor = "bg-yellow-100 text-yellow-800";
-    } else if (difficultyLevel === 3) {
-      bgColor = "bg-red-100 text-red-800";
-    }
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor}`}>
-        <BarChart2 className="w-3 h-3 mr-1" /> Level {difficultyLevel}
-      </span>
-    );
-  };
   
   // Priority Badge component - Updated to match QueueManagement style
   const PriorityBadge: React.FC<{ priority?: string | number }> = ({ priority }) => {
