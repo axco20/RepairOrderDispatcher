@@ -9,14 +9,17 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, inviteUrl } = body;
+    const { email, dealershipId, role } = body;
 
-    if (!email || !inviteUrl) {
+    if (!email || !dealershipId || !role) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const inviteUrl = `${siteUrl}/signuppage?email=${encodeURIComponent(email)}&dealership_id=${dealershipId}&role=${role}`;
 
     // Send email with invitation link
     const { data, error } = await resend.emails.send({

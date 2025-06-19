@@ -146,19 +146,21 @@ const TeamMembers: React.FC = () => {
 
       const dealershipId = adminData.dealership_id;
       
-      // ✅ Generate invite link with dealership ID and role
-      const inviteUrl = `${window.location.origin}/signuppage?email=${encodeURIComponent(email)}&dealership_id=${dealershipId}&role=${role}`;
-      console.log("Generated invite URL:", inviteUrl);
-      
-      // ✅ Send email with the invite link
-      console.log("Sending email with payload:", { email, inviteUrl });
-      await fetch("/api/send-invite-email", {
+      const response = await fetch("/api/send-invite-email", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ email, inviteUrl }),
+        body: JSON.stringify({
+          email,
+          dealershipId,
+          role,
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to send invite');
+      }
       
       toast.success("✅ Invitation sent successfully!");
       setIsModalOpen(false);
