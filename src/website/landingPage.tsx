@@ -3,11 +3,11 @@ import { Wrench, ArrowRight } from 'lucide-react';
 
 const LandingPage = () => {
   const handleLogin = () => {
-    window.location.href = "http://localhost:3000/loginpage";
+    window.location.href = "/loginpage";
   };
 
   const handleSignup = () => {
-    window.location.href = "http://localhost:3000/signuppage";
+    window.location.href = "/signuppage";
   };
 
   const handleContact = () => {
