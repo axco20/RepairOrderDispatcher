@@ -26,7 +26,6 @@ const TeamMembers: React.FC = () => {
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
   const [skillLevel, setSkillLevel] = useState<number>(1);
   const [isRemoving, setIsRemoving] = useState(false);
-  const [] = useState<string | null>(null);
   const [, setLoading] = useState(false);
   const [, setError] = useState<string | null>(null);
   const [, setInviting] = useState(false);
@@ -42,7 +41,6 @@ const TeamMembers: React.FC = () => {
       // Refresh team members data
       fetchMembers();
     },
-    notificationMessage: 'Team members updated in real-time'
   });
 
   // Modify the fetchMembers function
@@ -84,7 +82,8 @@ const TeamMembers: React.FC = () => {
       }
 
       setMembers(data || []);
-    } catch (err) {
+    } catch (error) {
+      console.error("Error fetching team members:", error);
       setError("Error fetching team members");
     } finally {
       setLoading(false);
@@ -120,31 +119,23 @@ const TeamMembers: React.FC = () => {
     try {
       setInviting(true);
       
-      // Create user in Supabase Auth
-      const { data: userData, error: userError } = await supabase.auth.admin.createUser({
-        email: email,
-        password: 'tempPassword123!', // They'll reset this
-        email_confirm: true
-      });
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-      if (userError || !userData.user) {
-        setError("Failed to create user account");
-        return;
+      if (userError || !user) {
+        throw new Error("User not found.");
       }
 
-      // Get current user's dealership ID for the new user
-      const { data: adminData, error: adminError } = await supabase
+      const { data: currentUser, error: currentUserError } = await supabase
         .from("users")
         .select("dealership_id")
-        .eq("auth_id", userData.user.id)
+        .eq("auth_id", user.id)
         .single();
-
-      if (adminError || !adminData?.dealership_id) {
-        setError("Failed to get dealership information");
-        return;
+      
+      if (currentUserError || !currentUser) {
+        throw new Error("Could not retrieve dealership info.");
       }
 
-      const dealershipId = adminData.dealership_id;
+      const dealershipId = currentUser.dealership_id;
       
       const response = await fetch("/api/send-invite-email", {
         method: "POST",
@@ -159,7 +150,8 @@ const TeamMembers: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to send invite');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send invite');
       }
       
       toast.success("✅ Invitation sent successfully!");
@@ -168,7 +160,7 @@ const TeamMembers: React.FC = () => {
       setEmail("");
     } catch (error) {
       console.error("Error sending invitation:", error);
-      toast.error("❌ Error sending invitation.");
+      toast.error(`❌ Error sending invitation: ${(error as Error).message}`);
     } finally {
       setInviting(false);
     }
@@ -237,7 +229,19 @@ const TeamMembers: React.FC = () => {
       if (error) {
         console.error("Error removing team member:", error);
         toast.error("❌ Failed to remove team member");
+        setIsRemoving(false);
         return;
+      }
+
+      // 2. Remove user from Supabase Auth
+      const { error: authError } = await supabase.auth.admin.deleteUser(
+        memberToRemove.auth_id
+      );
+
+      if (authError) {
+        console.error("Error removing user from auth:", authError);
+        // Even if auth fails, we've removed them from the app, so we can continue
+        // You might want to handle this more gracefully (e.g., retry logic)
       }
 
       // The local state will be updated by the realtime subscription,
