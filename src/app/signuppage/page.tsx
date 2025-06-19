@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useSearchParams } from "next/navigation"; // ✅ Import to read URL params
 
@@ -195,4 +195,10 @@ const SignUp: React.FC = () => {
   );
 };
 
-export default SignUp;
+const SignUpPage = () => (
+  <Suspense fallback={<div>Loading...</div>}>
+    <SignUp />
+  </Suspense>
+);
+
+export default SignUpPage;
