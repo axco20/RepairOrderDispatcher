@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
       .insert({
         auth_id: userId,
         email,
+        name: email, // Use email as a temporary placeholder name
         role,
         dealership_id: dealershipId,
       });

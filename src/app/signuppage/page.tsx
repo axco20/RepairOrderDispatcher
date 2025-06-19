@@ -42,57 +42,82 @@ const SignUp: React.FC = () => {
     }
 
     try {
-      // ✅ Step 1: Sign up user in Supabase authentication
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: passcode,
-      });
+      // If the user was invited, their auth record already exists.
+      // We just need to update their password and name.
+      if (dealershipIdFromUrl) {
+        // Step 1: Update the user's password
+        const { error: passwordError } = await supabase.auth.updateUser({ password: passcode });
 
-      if (error || !data.user) {
-        throw new Error(error?.message || "Failed to create user.");
-      }
-
-      const userId = data.user.id;
-      let finalDealershipId = dealershipIdFromUrl;
-
-      // ✅ Step 2: If no dealership ID is in the URL, create a new dealership
-      if (!dealershipIdFromUrl) {
-        const { data: dealershipData, error: dealershipError } = await supabase
-          .from("dealerships")
-          .insert([
-            {
-              name: dealershipName,
-              location: dealershipLocation,
-              created_at: new Date().toISOString(),
-            },
-          ])
-          .select();
-
-        if (dealershipError) {
-          throw new Error(`Failed to create dealership: ${dealershipError.message}`);
+        if (passwordError) {
+          throw new Error(`Failed to update password: ${passwordError.message}`);
         }
 
-        finalDealershipId = dealershipData[0].id; // Get the new dealership ID
+        // Step 2: Update the user's name in the public "users" table
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Could not find authenticated user.");
+
+        const { error: nameError } = await supabase
+          .from("users")
+          .update({ name })
+          .eq("auth_id", user.id);
+
+        if (nameError) {
+          throw new Error(`Failed to update user's name: ${nameError.message}`);
+        }
+
+      } else {
+        // This is a new admin registering their own dealership
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password: passcode,
+        });
+  
+        if (error || !data.user) {
+          throw new Error(error?.message || "Failed to create user.");
+        }
+  
+        const userId = data.user.id;
+        let finalDealershipId = dealershipIdFromUrl;
+  
+        // ✅ Step 2: If no dealership ID is in the URL, create a new dealership
+        if (!dealershipIdFromUrl) {
+          const { data: dealershipData, error: dealershipError } = await supabase
+            .from("dealerships")
+            .insert([
+              {
+                name: dealershipName,
+                location: dealershipLocation,
+                created_at: new Date().toISOString(),
+              },
+            ])
+            .select();
+  
+          if (dealershipError) {
+            throw new Error(`Failed to create dealership: ${dealershipError.message}`);
+          }
+  
+          finalDealershipId = dealershipData[0].id; // Get the new dealership ID
+        }
+  
+        // ✅ Step 3: Add user to the "users" table and link to dealership
+        const { error: userError } = await supabase
+          .from("users")
+          .insert([
+            {
+              auth_id: userId,
+              email,
+              name,
+              role: inviteRole, // Default to technician if invited, otherwise admin
+              dealership_id: finalDealershipId, // Link to existing or new dealership
+            },
+          ]);
+  
+        if (userError) {
+          throw new Error(`Failed to create user record: ${userError.message}`);
+        }
       }
 
-      // ✅ Step 3: Add user to the "users" table and link to dealership
-      const { error: userError } = await supabase
-        .from("users")
-        .insert([
-          {
-            auth_id: userId,
-            email,
-            name,
-            role: inviteRole, // Default to technician if invited, otherwise admin
-            dealership_id: finalDealershipId, // Link to existing or new dealership
-          },
-        ]);
-
-      if (userError) {
-        throw new Error(`Failed to create user record: ${userError.message}`);
-      }
-
-      setMessage("✅ Registration successful!");
+      setMessage("✅ Registration successful! You can now log in.");
       setName("");
       setEmail("");
       setPasscode("");
