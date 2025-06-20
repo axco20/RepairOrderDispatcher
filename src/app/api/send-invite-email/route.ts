@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       .insert({
         auth_id: userId,
         email,
-        name: email, // Use email as a temporary placeholder name
+        name: email, // Use email as a temporary name
         role,
         dealership_id: dealershipId,
       });
@@ -64,28 +64,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Failed to save user details: ${publicUserError.message}` }, { status: 500 });
     }
 
-    // Step 3: Generate a password reset link (as an invite link)
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
-      email: email,
-    });
+    // Step 3: Send the invitation email
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const inviteUrl = `${siteUrl}/signuppage?email=${encodeURIComponent(email)}&dealership_id=${dealershipId}&role=${role}`;
 
-    if (linkError) {
-      // If we can't generate a link, we should clean up the created user
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      return NextResponse.json({ error: `Failed to generate invite link: ${linkError.message}` }, { status: 500 });
-    }
-
-    const inviteLink = linkData.properties.action_link;
-
-    // Step 4: Send the invitation email
     const { data, error: emailError } = await resend.emails.send({
       from: "Registration Confirmation <support@autosynctify.com>",
       to: [email],
       subject: "You're Invited to AutoSynctify!",
       react: React.createElement(EmailTemplate, {
-        message: "You've been invited to join a dealership on AutoSynctify. Click the button below to set your password and complete your registration.",
-        link: inviteLink
+        message: "You've been invited to join a dealership on AutoSynctify. Click the button below to complete your registration.",
+        link: inviteUrl
       }),
     });
 

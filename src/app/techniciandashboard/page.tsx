@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useRepairOrders } from "@/context/RepairOrderContext";
-import TechSidebar, { TechPage } from "@/components/TechSideBar";
+import TechSidebar from "@/components/TechSideBar";
 import Home from "@/components/TechnicianTabs/Home";
 import ActiveOrders from "@/components/TechnicianTabs/ActiveOrders";
 import CompletedOrders from "@/components/TechnicianTabs/CompletedOrders";
@@ -13,16 +13,15 @@ import { toast } from "react-toastify";
 import { useRealTimeUpdates } from "@/lib/useRealTimeOrders";
 import { useAdminRealTime } from "@/lib/useAdminRealTime";
 import { supabase } from "@/lib/supabaseClient";
-import RealTimeStatus from '@/components/RealTimeStatus';
 
 // Removed the TechnicianWorkload import
 
-const TechnicianDashboard: React.FC = () => {
-  const { user, loading } = useAuth();
+export default function TechnicianDashboard() {
+  const { currentUser, logout } = useAuth();
   const router = useRouter();
   
   // Get real-time connection status
-  const { isConnected, error } = useRealTimeUpdates();
+  useRealTimeUpdates();
   
   // Listen for repair order updates to refresh technician data
   useAdminRealTime({
@@ -43,7 +42,7 @@ const TechnicianDashboard: React.FC = () => {
     refreshOrders
   } = useRepairOrders();
 
-  const [activePage, setActivePage] = useState<TechPage>('Dashboard');
+  const [activePage, setActivePage] = useState<"Home" | "ActiveOrders"| "OnHoldOrders" | "CompletedOrders" | "Help">("Home");
   const [isAssigningOrder, setIsAssigningOrder] = useState(false);
   const [techSkillLevel, setTechSkillLevel] = useState<number>(1);
   const [availableOrdersCount, setAvailableOrdersCount] = useState<number>(0);
@@ -51,14 +50,14 @@ const TechnicianDashboard: React.FC = () => {
   // Fetch technician skill level and count available orders
   useEffect(() => {
     const fetchTechDetails = async () => {
-      if (!user) return;
+      if (!currentUser) return;
   
       try {
         // Get technician details (dealership_id)
         const { data: techData, error: techError } = await supabase
           .from("users")
           .select("dealership_id, skill_level")
-          .eq("auth_id", user.id)
+          .eq("auth_id", currentUser.id)
           .single();
   
         if (techError || !techData?.dealership_id) {
@@ -89,7 +88,7 @@ const TechnicianDashboard: React.FC = () => {
     };
   
     fetchTechDetails();
-  }, [user, pendingOrders]);
+  }, [currentUser, pendingOrders]);
   
 
   // FIX: Only run once on mount instead of on every render
@@ -99,20 +98,13 @@ const TechnicianDashboard: React.FC = () => {
     // IMPORTANT: Remove refreshOrders from the dependency array
   }, []);
 
-  if (loading) {
-    return <div>Loading...</div>; // Or a spinner component
-  }
+  if (!currentUser) return <p>Loading...</p>;
 
-  if (!user) {
-    router.push("/loginpage"); // Redirect if not logged in
-    return null;
-  }
-
-  const myOrders = technicianOrders(user.id);
+  const myOrders = technicianOrders(currentUser.id);
   const activeOrders = myOrders.filter(order => order.status === "in_progress");
   const onHoldOrders = myOrders.filter(order => order.status === "on_hold"); 
-  const activeOrderCount = technicianActiveOrderCount(user.id);
-  const canGetNewOrder = canRequestNewOrder(user.id);
+  const activeOrderCount = technicianActiveOrderCount(currentUser.id);
+  const canGetNewOrder = canRequestNewOrder(currentUser.id);
 
   // Create a wrapper function that passes the current user ID to getNextRepairOrder
   const handleGetNextRepairOrder = async () => {
@@ -120,9 +112,9 @@ const TechnicianDashboard: React.FC = () => {
     
     try {
       setIsAssigningOrder(true);
-      console.log("Getting next repair order for technician:", user.id);
+      console.log("Getting next repair order for technician:", currentUser.id);
       
-      const result = await getNextRepairOrder(user.id);
+      const result = await getNextRepairOrder(currentUser.id);
       
       if (result) {
         toast.success("New repair order assigned!");
@@ -132,7 +124,7 @@ const TechnicianDashboard: React.FC = () => {
         await refreshOrders();
         
         // Auto-navigate to active orders after getting a new one
-        setActivePage("Active");
+        setActivePage("ActiveOrders");
       } else {
         if (pendingOrders.length === 0) {
           toast.info("No pending orders available in the queue");
@@ -156,38 +148,29 @@ const TechnicianDashboard: React.FC = () => {
 
   // Define a logout handler that also redirects to the landing page
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await logout();
     router.push("/");
   };
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <TechSidebar
-        userName={user?.name || 'Technician'}
+        userName={currentUser.name}
         activePage={activePage}
         onNavigate={setActivePage}
         onLogout={handleLogout}
         activeOrdersCount={activeOrders.length}
         onHoldOrdersCount={onHoldOrders.length} 
+
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center">
-          <h1 className="text-xl font-semibold text-gray-900">
-            {activePage === 'Dashboard' && 'Technician Dashboard'}
-            {activePage === 'Active' && 'Active Repair Orders'}
-            {activePage === 'On Hold' && 'On-Hold Repair Orders'}
-            {activePage === 'Completed' && 'Completed Repair Orders'}
-            {activePage === 'Help' && 'Help & Support'}
-          </h1>
-          <RealTimeStatus isConnected={isConnected} error={error} />
-        </header>
         
         <main className="flex-1 overflow-y-auto p-6 bg-gray-100">
           {/* Removed TechnicianWorkload component */}
           
           {/* Render different main content depending on activePage */}
-          {activePage === "Dashboard" && (
+          {activePage === "Home" && (
             <Home 
               activeOrderCount={activeOrderCount}
               canGetNewOrder={canGetNewOrder}
@@ -196,14 +179,12 @@ const TechnicianDashboard: React.FC = () => {
               isLoading={isAssigningOrder}
             />
           )}
-          {activePage === "Active" && <ActiveOrders />}
-          {activePage === "On Hold" && <OnHoldOrders />}
-          {activePage === "Completed" && <CompletedOrders />}
+          {activePage === "ActiveOrders" && <ActiveOrders />}
+          {activePage === "OnHoldOrders" && <OnHoldOrders />}
+          {activePage === "CompletedOrders" && <CompletedOrders />}
           {activePage === "Help" && <Help />}
         </main>
       </div>
     </div>
   );
-};
-
-export default TechnicianDashboard;
+}

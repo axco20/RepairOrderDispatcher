@@ -3,11 +3,9 @@
 import React, { useState } from 'react';
 import { useRouter } from "next/navigation";
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabaseClient';
 import AdminSidebar, { AdminPage } from '../../components/AdminSideBar';
 import { useRealTimeUpdates } from "@/lib/useRealTimeOrders";
 import RealTimeStatus from '@/components/RealTimeStatus';
-import AdminHome from '../../components/AdminTabs/AdminHome';
 
 // Import your tab components
 import TeamMembers from '../../components/AdminTabs/TeamMembers';
@@ -15,9 +13,10 @@ import Queue from '../../components/AdminTabs/Queue';
 import Orders from '../../components/AdminTabs/Orders';
 import Performance from '../../components/AdminTabs/Performance';
 import AdminHelp from '../../components/AdminTabs/AdminHelp';
+import AdminHome from '../../components/AdminTabs/AdminHome';
 
 const AdminDashboard: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { currentUser, logout } = useAuth();
   const router = useRouter();
 
   // Get real-time connection status
@@ -26,25 +25,19 @@ const AdminDashboard: React.FC = () => {
   // "Dashboard" is your default active tab/page
   const [activePage, setActivePage] = useState<AdminPage>('Dashboard');
 
+  if (!currentUser) return null;
+
+  // Define a logout function that also redirects to the landing page
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await logout();
     router.push("/");
   };
-
-  if (loading) {
-    return <div>Loading...</div>; // Or a spinner component
-  }
-
-  if (!user) {
-    router.push("/loginpage"); // Redirect if not logged in
-    return null;
-  }
 
   return (
     <div className="flex h-screen w-full">
       {/* Sidebar */}
       <AdminSidebar
-        userName={user?.name || 'Admin User'}
+        userName={currentUser?.name || 'Admin User'}
         activePage={activePage}
         onNavigate={setActivePage}
         onLogout={handleLogout} // Use the new logout handler
