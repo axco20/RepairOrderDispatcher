@@ -1,17 +1,18 @@
 "use client";
 import React, { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useSearchParams } from "next/navigation"; // ✅ Import to read URL params
+import { useSearchParams } from "next/navigation";
+import { toast } from "react-toastify";
 
 const SignUp: React.FC = () => {
-  const searchParams = useSearchParams(); // ✅ Get URL params
+  const searchParams = useSearchParams();
 
-  // ✅ Read values from the URL (if they exist)
   const emailFromUrl = searchParams.get("email") || "";
-  const dealershipIdFromUrl = searchParams.get("dealership_id") || null;
+  const dealershipIdFromUrl = searchParams.get("dealership_id") || "";
+  const inviteRole = searchParams.get("role");
 
   const [name, setName] = useState("");
-  const [email, setEmail] = useState(emailFromUrl); // Prefill email if in URL
+  const [email, setEmail] = useState(emailFromUrl);
   const [passcode, setPasscode] = useState("");
   const [dealershipName, setDealershipName] = useState("");
   const [dealershipLocation, setDealershipLocation] = useState("");
@@ -19,15 +20,13 @@ const SignUp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Ensure email field updates when the URL changes
     setEmail(emailFromUrl);
   }, [emailFromUrl]);
 
   const handleSignUp = async () => {
-    setMessage(""); // Clear previous messages
+    setMessage("");
     setIsLoading(true);
 
-    // ✅ Validation
     if (!name || !email || !passcode) {
       setMessage("⚠️ Name, email, and password are required.");
       setIsLoading(false);
@@ -41,38 +40,58 @@ const SignUp: React.FC = () => {
     }
 
     try {
-      // Step 1: Get the currently signed-in user from the session
-      const { data: { user }, error: sessionError } = await supabase.auth.getUser();
+      let finalDealershipId = dealershipIdFromUrl;
 
-      if (sessionError || !user) {
-        throw new Error("No authenticated user found. Please use the invite link.");
+      // If a user is NOT invited (no dealershipId in URL), they are a new admin creating a dealership.
+      if (!dealershipIdFromUrl) {
+        const { data: dealershipData, error: dealershipError } = await supabase
+          .from("dealerships")
+          .insert([{ name: dealershipName, location: dealershipLocation }])
+          .select()
+          .single();
+
+        if (dealershipError) throw dealershipError;
+        if (!dealershipData) throw new Error("Could not create dealership.");
+        
+        finalDealershipId = dealershipData.id;
       }
+
+      // Create the user in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password: passcode,
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Sign up failed, please try again.");
       
-      // Step 2: Update the user's password
-      const { error: passwordError } = await supabase.auth.updateUser({ password: passcode });
-      
-      if (passwordError) {
-        throw new Error(`Failed to update password: ${passwordError.message}`);
-      }
+      const userId = authData.user.id;
 
-      // Step 3: Update the user's name in the "users" table
-      const { error: userError } = await supabase
-        .from("users")
-        .update({ name: name })
-        .eq("auth_id", user.id);
+      // Add the user to the public "users" table
+      const { error: userError } = await supabase.from("users").insert([
+        {
+          auth_id: userId,
+          email,
+          name,
+          role: inviteRole || 'admin', // default to admin if not invited
+          dealership_id: finalDealershipId,
+        },
+      ]);
 
-      if (userError) {
-        throw new Error(`Failed to update user record: ${userError.message}`);
-      }
+      if (userError) throw userError;
 
-      setMessage("✅ Registration successful! You can now log in.");
+      toast.success("✅ Registration successful! You can now log in.");
+
       setName("");
       setEmail("");
       setPasscode("");
       setDealershipName("");
       setDealershipLocation("");
+
     } catch (error) {
-      setMessage(`❌ Error: ` + error);
+      const e = error as Error;
+      console.error("Sign up error:", e);
+      setMessage(`❌ Error: ${e.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -137,7 +156,7 @@ const SignUp: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2 mt-1 border rounded-md focus:ring-blue-500 focus:border-blue-500"
-                disabled={!!emailFromUrl} // Disable if email is from URL
+                disabled={!!emailFromUrl}
               />
             </div>
 
