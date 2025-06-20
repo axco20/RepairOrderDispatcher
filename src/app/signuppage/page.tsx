@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
 const SignUp: React.FC = () => {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
@@ -75,15 +76,12 @@ const SignUp: React.FC = () => {
         throw new Error(data.error || "Registration failed.");
       }
       
-      toast.success("✅ Registration successful! You can now log in.");
-      setMessage("Registration complete! You may now close this page and log in.");
-      setIsLoading(false);
-      setIsValid(false); // Prevent re-submission
+      toast.success("✅ Signup successful! Please log in.");
+      router.push('/');
 
     } catch (error) {
       const e = error as Error;
       setMessage(`❌ Error: ${e.message}`);
-    } finally {
       setIsLoading(false);
     }
   };
