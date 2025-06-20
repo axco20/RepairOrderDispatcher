@@ -9,8 +9,11 @@ import { supabase } from "@/lib/supabaseClient";
 
 export default function ActiveOrders() {
   const { currentUser } = useAuth();
-  const { technicianOrders, refreshOrders } =
-    useRepairOrders();
+  const {
+    technicianOrders,
+    refreshOrders,
+    updateRepairOrder,
+  } = useRepairOrders();
   const [refreshing, setRefreshing] = useState(false);
   const [showReasonId, setShowReasonId] = useState<string | null>(null);
   const [isResuming, setIsResuming] = useState<string | null>(null);
@@ -55,7 +58,7 @@ export default function ActiveOrders() {
       
       if (success) {
         toast.success("Order resumed successfully!");
-        await refreshOrdersFromContext();
+        await refreshOrders();
       } else {
         toast.error("Failed to resume order");
       }
