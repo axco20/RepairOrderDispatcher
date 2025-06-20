@@ -3,12 +3,12 @@
 import React from "react";
 import { Home, CheckCircle, HelpCircle, LogOut, PauseCircle, Wrench } from "lucide-react";
 
-export type PageType = "Home" | "ActiveOrders" | "OnHoldOrders" | "CompletedOrders" | "Help";
+export type TechPage = 'Dashboard' | 'Active' | 'On Hold' | 'Completed' | 'Help';
 
 interface TechSidebarProps {
   userName: string;
-  activePage: PageType;
-  onNavigate: (page: PageType) => void;
+  activePage: TechPage;
+  onNavigate: (page: TechPage) => void;
   onLogout: () => void;
   activeOrdersCount: number;
   onHoldOrdersCount: number; // NEW PROP for On Hold Orders
@@ -44,10 +44,10 @@ const TechSidebar: React.FC<TechSidebarProps> = ({
       {/* Navigation Links */}
       <nav className="flex-1 overflow-y-auto p-2">
         {[
-          { name: "Home", icon: Home },
-          { name: "ActiveOrders", icon: Wrench, count: activeOrdersCount },
-          { name: "OnHoldOrders", icon: PauseCircle, count: onHoldOrdersCount }, // OnHoldOrders Counter
-          { name: "CompletedOrders", icon: CheckCircle },
+          { name: "Dashboard", icon: Home },
+          { name: "Active", icon: Wrench, count: activeOrdersCount },
+          { name: "On Hold", icon: PauseCircle, count: onHoldOrdersCount }, // OnHoldOrders Counter
+          { name: "Completed", icon: CheckCircle },
           { name: "Help", icon: HelpCircle },
         ].map(({ name, icon: Icon, count }) => (
           <button
@@ -55,7 +55,7 @@ const TechSidebar: React.FC<TechSidebarProps> = ({
             className={`flex items-center w-full p-3 rounded-md ${
               activePage === name ? "bg-indigo-700" : "hover:bg-gray-700"
             }`}
-            onClick={() => onNavigate(name as PageType)}
+            onClick={() => onNavigate(name as TechPage)}
           >
             <Icon size={18} />
             <span className="ml-3">{name}</span>

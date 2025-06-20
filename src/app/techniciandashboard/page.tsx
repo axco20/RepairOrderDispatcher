@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useRepairOrders } from "@/context/RepairOrderContext";
-import TechSidebar from "@/components/TechSideBar";
+import TechSidebar, { TechPage } from "@/components/TechSideBar";
 import Home from "@/components/TechnicianTabs/Home";
 import ActiveOrders from "@/components/TechnicianTabs/ActiveOrders";
 import CompletedOrders from "@/components/TechnicianTabs/CompletedOrders";
@@ -13,15 +13,16 @@ import { toast } from "react-toastify";
 import { useRealTimeUpdates } from "@/lib/useRealTimeOrders";
 import { useAdminRealTime } from "@/lib/useAdminRealTime";
 import { supabase } from "@/lib/supabaseClient";
+import RealTimeStatus from '@/components/RealTimeStatus';
 
 // Removed the TechnicianWorkload import
 
-export default function TechnicianDashboard() {
-  const { currentUser, logout } = useAuth();
+const TechnicianDashboard: React.FC = () => {
+  const { user, loading } = useAuth();
   const router = useRouter();
   
   // Get real-time connection status
-  useRealTimeUpdates();
+  const { isConnected, error } = useRealTimeUpdates();
   
   // Listen for repair order updates to refresh technician data
   useAdminRealTime({
@@ -42,7 +43,7 @@ export default function TechnicianDashboard() {
     refreshOrders
   } = useRepairOrders();
 
-  const [activePage, setActivePage] = useState<"Home" | "ActiveOrders"| "OnHoldOrders" | "CompletedOrders" | "Help">("Home");
+  const [activePage, setActivePage] = useState<TechPage>('Dashboard');
   const [isAssigningOrder, setIsAssigningOrder] = useState(false);
   const [techSkillLevel, setTechSkillLevel] = useState<number>(1);
   const [availableOrdersCount, setAvailableOrdersCount] = useState<number>(0);
@@ -50,14 +51,14 @@ export default function TechnicianDashboard() {
   // Fetch technician skill level and count available orders
   useEffect(() => {
     const fetchTechDetails = async () => {
-      if (!currentUser) return;
+      if (!user) return;
   
       try {
         // Get technician details (dealership_id)
         const { data: techData, error: techError } = await supabase
           .from("users")
           .select("dealership_id, skill_level")
-          .eq("auth_id", currentUser.id)
+          .eq("auth_id", user.id)
           .single();
   
         if (techError || !techData?.dealership_id) {
@@ -88,7 +89,7 @@ export default function TechnicianDashboard() {
     };
   
     fetchTechDetails();
-  }, [currentUser, pendingOrders]);
+  }, [user, pendingOrders]);
   
 
   // FIX: Only run once on mount instead of on every render
@@ -98,13 +99,20 @@ export default function TechnicianDashboard() {
     // IMPORTANT: Remove refreshOrders from the dependency array
   }, []);
 
-  if (!currentUser) return <p>Loading...</p>;
+  if (loading) {
+    return <div>Loading...</div>; // Or a spinner component
+  }
 
-  const myOrders = technicianOrders(currentUser.id);
+  if (!user) {
+    router.push("/loginpage"); // Redirect if not logged in
+    return null;
+  }
+
+  const myOrders = technicianOrders(user.id);
   const activeOrders = myOrders.filter(order => order.status === "in_progress");
   const onHoldOrders = myOrders.filter(order => order.status === "on_hold"); 
-  const activeOrderCount = technicianActiveOrderCount(currentUser.id);
-  const canGetNewOrder = canRequestNewOrder(currentUser.id);
+  const activeOrderCount = technicianActiveOrderCount(user.id);
+  const canGetNewOrder = canRequestNewOrder(user.id);
 
   // Create a wrapper function that passes the current user ID to getNextRepairOrder
   const handleGetNextRepairOrder = async () => {
@@ -112,9 +120,9 @@ export default function TechnicianDashboard() {
     
     try {
       setIsAssigningOrder(true);
-      console.log("Getting next repair order for technician:", currentUser.id);
+      console.log("Getting next repair order for technician:", user.id);
       
-      const result = await getNextRepairOrder(currentUser.id);
+      const result = await getNextRepairOrder(user.id);
       
       if (result) {
         toast.success("New repair order assigned!");
@@ -124,7 +132,7 @@ export default function TechnicianDashboard() {
         await refreshOrders();
         
         // Auto-navigate to active orders after getting a new one
-        setActivePage("ActiveOrders");
+        setActivePage("Active");
       } else {
         if (pendingOrders.length === 0) {
           toast.info("No pending orders available in the queue");
@@ -148,29 +156,38 @@ export default function TechnicianDashboard() {
 
   // Define a logout handler that also redirects to the landing page
   const handleLogout = async () => {
-    await logout();
+    await supabase.auth.signOut();
     router.push("/");
   };
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <TechSidebar
-        userName={currentUser.name}
+        userName={user?.name || 'Technician'}
         activePage={activePage}
         onNavigate={setActivePage}
         onLogout={handleLogout}
         activeOrdersCount={activeOrders.length}
         onHoldOrdersCount={onHoldOrders.length} 
-
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center">
+          <h1 className="text-xl font-semibold text-gray-900">
+            {activePage === 'Dashboard' && 'Technician Dashboard'}
+            {activePage === 'Active' && 'Active Repair Orders'}
+            {activePage === 'On Hold' && 'On-Hold Repair Orders'}
+            {activePage === 'Completed' && 'Completed Repair Orders'}
+            {activePage === 'Help' && 'Help & Support'}
+          </h1>
+          <RealTimeStatus isConnected={isConnected} error={error} />
+        </header>
         
         <main className="flex-1 overflow-y-auto p-6 bg-gray-100">
           {/* Removed TechnicianWorkload component */}
           
           {/* Render different main content depending on activePage */}
-          {activePage === "Home" && (
+          {activePage === "Dashboard" && (
             <Home 
               activeOrderCount={activeOrderCount}
               canGetNewOrder={canGetNewOrder}
@@ -179,12 +196,14 @@ export default function TechnicianDashboard() {
               isLoading={isAssigningOrder}
             />
           )}
-          {activePage === "ActiveOrders" && <ActiveOrders />}
-          {activePage === "OnHoldOrders" && <OnHoldOrders />}
-          {activePage === "CompletedOrders" && <CompletedOrders />}
+          {activePage === "Active" && <ActiveOrders />}
+          {activePage === "On Hold" && <OnHoldOrders />}
+          {activePage === "Completed" && <CompletedOrders />}
           {activePage === "Help" && <Help />}
         </main>
       </div>
     </div>
   );
-}
+};
+
+export default TechnicianDashboard;
